@@ -1,0 +1,54 @@
+*rex-navigator.txt*    Seamless Neovim/Rex directional navigation
+
+REQUIREMENTS                                            *rex-navigator*
+Neovim 0.10+, a compatible Rex server, and the Rex CLI.
+Both the Neovim module and rex/navigator.lua must be installed.
+See README.md for the companion Rex configuration and installation.
+
+SETUP                                                   *rex-navigator-setup*
+>
+    require('rex-navigator').setup({
+      mappings = true,
+      terminal = true,
+      wrap = true,
+      -- rex_cmd = '/absolute/path/to/rex',
+    })
+<
+Call setup once at startup. Ctrl-h/j/k/l mappings are installed only inside
+Rex, not inside a nested tmux. Terminal mappings preserve fzf selection keys.
+
+COMMANDS                                                *rex-navigator-commands*
+:RexNavigateLeft                                         *:RexNavigateLeft*
+:RexNavigateDown                                         *:RexNavigateDown*
+:RexNavigateUp                                           *:RexNavigateUp*
+:RexNavigateRight                                        *:RexNavigateRight*
+    Navigate Neovim windows first, then Rex panes at an edge.
+
+<Plug>(RexNavigateLeft)                                  *<Plug>(RexNavigateLeft)*
+<Plug>(RexNavigateDown)                                  *<Plug>(RexNavigateDown)*
+<Plug>(RexNavigateUp)                                    *<Plug>(RexNavigateUp)*
+<Plug>(RexNavigateRight)                                 *<Plug>(RexNavigateRight)*
+    Normal-mode mapping targets. Set mappings = false for custom bindings.
+
+LUA                                                     *rex-navigator-lua*
+require('rex-navigator').navigate(direction)
+    direction: "h", "j", "k", or "l".
+    Returns true when a Neovim window changed or Rex accepted the handoff,
+    including a stale handoff safely dropped after its source lost focus.
+    Returns false in the command-line window, on a CLI/context error, or when
+    no Neovim window exists in that direction outside Rex.
+    CLI failures show a warning. Calls at editor edges have a bounded timeout
+    and do not start a Rex server. The source pane must have REX_BLOCK set.
+
+LIMITATIONS                                             *rex-navigator-limits*
+Directional navigation only. Previous-pane toggling, automatic saving, plain
+Vim, and zoom-preservation options are not implemented. Terminal navigation
+leaves terminal-input mode. SSH-hosted Neovim is unsupported: Rex sees ssh,
+not the remote editor. Installing the plugin or CLI remotely is insufficient.
+
+Detection is process-based: Neovim without this plugin can receive navigation
+keys but cannot hand focus back to Rex. Wrapper detection invokes ps, including
+from plain shells. It adds latency; ordinary typed input is not buffered while
+it runs. Concurrent/stale navigation is dropped, not replayed in another pane.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
