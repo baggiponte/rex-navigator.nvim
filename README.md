@@ -14,16 +14,17 @@ with a Neovim plugin and a companion Lua module for Rex.
 ## How it works
 
 ```text
-                     one Rex tab
-┌────────────────────────────────────┬────────────────┐
-│             Neovim                 │                │
-│ ┌──────────┬───────────┬──────────┐ │                │
-│ │ file tree│ editor A  │ editor B │ │     shell      │
-│ └──────────┴───────────┴──────────┘ │                │
-└────────────────────────────────────┴────────────────┘
-       Ctrl-l →     Ctrl-l →         Ctrl-l →
-       Neovim window navigation     Rex pane navigation
+                      One Rex tab
++---------------------------------------+-------------+
+|                Neovim                 |    shell    |
+| +-----------+-----------+-----------+ |             |
+| | file tree | editor A  | editor B  | |             |
+| +-----------+-----------+-----------+ |             |
++---------------------------------------+-------------+
 ```
+
+- **Ctrl-l:** file tree → editor A → editor B → Rex shell.
+- **Ctrl-h:** back through the same layout, in reverse.
 
 Rex decides whether to forward each navigation key to Neovim. Neovim tries
 `wincmd h/j/k/l` first and calls the Rex CLI only when there is no editor window
