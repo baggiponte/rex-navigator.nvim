@@ -10,7 +10,7 @@ local defaults = { mappings = true, terminal = true, wrap = true }
 local config = vim.deepcopy(defaults)
 
 local function in_rex()
-  return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= '' and not vim.env.TMUX
+  return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
 end
 
 -- Keep source and navigation data in argv, never interpolated into Lua.
@@ -103,7 +103,7 @@ function M.setup(opts)
     end, { force = true, desc = 'Navigate ' .. target.direction .. ' through Neovim and Rex' })
     vim.keymap.set('n', plug, '<Cmd>' .. command .. '<CR>', { silent = true })
 
-    -- Leave tmux and other terminals' existing bindings alone.
+    -- Leave existing bindings alone outside Rex.
     if in_rex() and config.mappings then
       vim.keymap.set('n', '<C-' .. key .. '>', plug, {
         silent = true,

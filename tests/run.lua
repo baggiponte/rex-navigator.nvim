@@ -7,7 +7,6 @@ local saved = {
   session = vim.env.REX_SESSION,
   block = vim.env.REX_BLOCK,
   rex = rawget(_G, 'rex'),
-  tmux = vim.env.TMUX,
   bin = vim.env.REX_BIN_DIR,
 }
 local calls, notices, failures = {}, {}, 0
@@ -20,7 +19,6 @@ local function test(name, run)
   vim.cmd.only()
   vim.env.REX_SESSION = 'session:test'
   vim.env.REX_BLOCK = 'block:test'
-  vim.env.TMUX = nil
   vim.env.REX_BIN_DIR = '/Applications/Rex Server'
   calls, notices = {}, {}
   vim.system = function(argv, opts)
@@ -158,13 +156,9 @@ test('missing REX_BLOCK refuses unscoped handoff with a warning', function(plugi
   assert(notices[1]:find('REX_BLOCK', 1, true))
 end)
 
-test('outside Rex and inside tmux, existing mappings are untouched', function(plugin)
-  for _, environment in ipairs({ 'outside', 'tmux' }) do
-    vim.env.REX_SESSION = 'session:test'
-    if environment == 'outside' then
-      vim.env.REX_SESSION = nil
-    end
-    vim.env.TMUX = environment == 'tmux' and '/tmp/tmux,123,0' or nil
+test('outside Rex, existing mappings are untouched', function(plugin)
+  for _, session in ipairs({ false, '' }) do
+    vim.env.REX_SESSION = session or nil
     vim.keymap.set('n', '<C-h>', '<Cmd>echo "existing"<CR>')
     plugin.setup()
     equal(vim.fn.maparg('<C-h>', 'n'), '<Cmd>echo "existing"<CR>')
@@ -205,7 +199,7 @@ dofile('tests/companion.lua')(test, equal)
 
 vim.system, vim.notify = saved.system, saved.notify
 vim.env.REX_SESSION, vim.env.REX_BLOCK = saved.session, saved.block
-vim.env.TMUX, vim.env.REX_BIN_DIR = saved.tmux, saved.bin
+vim.env.REX_BIN_DIR = saved.bin
 if failures > 0 then
   vim.cmd.cquit()
 end

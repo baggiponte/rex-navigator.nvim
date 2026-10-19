@@ -15,7 +15,7 @@ SETUP                                                   *rex-navigator-setup*
     })
 <
 Call setup once at startup. Ctrl-h/j/k/l mappings are installed only inside
-Rex, not inside a nested tmux. Terminal mappings preserve fzf selection keys.
+Rex (nonempty REX_SESSION). Terminal mappings preserve fzf selection keys.
 
 COMMANDS                                                *rex-navigator-commands*
 :RexNavigateLeft                                         *:RexNavigateLeft*
@@ -41,8 +41,9 @@ require('rex-navigator').navigate(direction)
     and do not start a Rex server. The source pane must have REX_BLOCK set.
 
 LIMITATIONS                                             *rex-navigator-limits*
-Directional navigation only. Previous-pane toggling, automatic saving, plain
-Vim, and zoom-preservation options are not implemented. Terminal navigation
+Directional navigation only. Nested multiplexers are unsupported.
+Previous-pane toggling, automatic saving, plain Vim, and zoom-preservation
+options are not implemented. Terminal navigation
 leaves terminal-input mode. SSH-hosted Neovim is unsupported: Rex sees ssh,
 not the remote editor. Installing the plugin or CLI remotely is insufficient.
 

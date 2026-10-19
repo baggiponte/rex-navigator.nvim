@@ -73,22 +73,20 @@ return function(test, equal)
     f.result.stdout = '100 90 S /bin/sh\n110 90 S+ /usr/local/bin/nvim\n'
   end
 
-  test('companion direct nvim/tmux and ancestors use fast path with explicit context', function()
+  test('companion direct Neovim and ancestors use fast path with explicit context', function()
     local f = fixture()
     for key, direction in pairs({ h = 'left', j = 'down', k = 'up', l = 'right' }) do
       equal(f.bindings['ctrl+' .. key], 'rex_navigate_' .. direction)
-      for _, name in ipairs({ 'nvim', 'tmux' }) do
-        f.process = { foreground = { name = name, pid = 100 } }
-        f.run(direction)
-        equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
-        f.process = { foreground = { name = 'child' }, ancestors = { { name = 'sh' }, { name = name } } }
-        f.run(direction)
-        equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
-      end
+      f.process = { foreground = { name = 'nvim', pid = 100 } }
+      f.run(direction)
+      equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
+      f.process = { foreground = { name = 'child' }, ancestors = { { name = 'sh' }, { name = 'nvim' } } }
+      f.run(direction)
+      equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
     end
     equal(f.exec_calls, 0)
-    equal(#f.process_calls, 16)
-    equal(#f.view_calls, 16)
+    equal(#f.process_calls, 8)
+    equal(#f.view_calls, 8)
     for _, args in ipairs(f.process_calls) do
       equal(args, { session_id = f.ctx.session_id, block_id = f.ctx.block_id })
     end
@@ -97,12 +95,12 @@ return function(test, equal)
     end
   end)
 
-  test('companion detects shell-wrapped nvim/tmux in the foreground group', function()
+  test('companion detects shell-wrapped Neovim in the foreground group', function()
     local f = fixture()
     shell(f)
     f.run()
     equal(f.queued[1], { 'pane.send_key', { key = 'ctrl+l' } })
-    f.result.stdout = '100 90 S /bin/sh\n110 90 R /opt/bin/tmux\n'
+    f.result.stdout = '100 90 S /bin/sh\n110 90 R /opt/bin/nvim\n'
     f.run('up')
     equal(f.queued[2], { 'pane.send_key', { key = 'ctrl+k' } })
     equal(f.exec_calls, 2)
@@ -116,9 +114,9 @@ return function(test, equal)
       '110 90 T /bin/nvim',
       '110 90 t /bin/nvim',
       '110 90 X /bin/nvim',
-      '110 90 x /bin/tmux',
+      '110 90 x /bin/nvim',
       '110 90 Z+ /bin/nvim',
-      '110 90 z /bin/tmux',
+      '110 90 z /bin/nvim',
       '110 90 S /bin/nvim-other',
     }) do
       f.result.stdout = '100 90 S /bin/sh\n' .. editor .. '\nmalformed line\n'

@@ -1,8 +1,7 @@
 -- Neovim handles its own windows, then calls Rex at an edge. Sending a key
 -- with pane.send_key bypasses Rex bindings, so this cannot recurse.
 local function handles_navigation(p)
-  -- A nested tmux keeps using vim-tmux-navigator inside its own panes.
-  return p and (p.name == 'nvim' or p.name == 'tmux')
+  return p and p.name == 'nvim'
 end
 
 local function editor_in_foreground_group(foreground)
@@ -48,7 +47,7 @@ local function editor_running(ctx)
     return true
   end
   -- The nvim fast path covers embedded :terminal buffers. Ancestors cover
-  -- a child running on the same PTY as Neovim or tmux.
+  -- a child running on the same PTY as Neovim.
   for _, ancestor in ipairs(process.ancestors or {}) do
     if handles_navigation(ancestor) then
       return true

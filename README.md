@@ -73,19 +73,12 @@ With another plugin manager, add this repository to Neovim's runtime path, then:
 require('rex-navigator').setup()
 ```
 
-Default Ctrl mappings activate only directly inside Rex. They do not replace
-bindings outside Rex or inside a nested tmux. Commands and Plug mappings are
-still available; outside Rex they only navigate Neovim windows.
+Default Ctrl mappings activate only when `REX_SESSION` is set to a nonempty
+value. They do not replace bindings outside Rex. Commands and Plug mappings
+are still available; outside Rex they only navigate Neovim windows.
 
-If you also use vim-tmux-navigator, disable its default mappings directly inside
-Rex so the plugins do not overwrite one another:
-
-```lua
-{
-  'christoomey/vim-tmux-navigator',
-  enabled = not (vim.env.REX_SESSION and not vim.env.TMUX),
-}
-```
+If another plugin maps the same keys, ensure this plugin's `setup()` runs after
+it when using Rex. The last mapping installed wins.
 
 ### 2. Load the Rex companion
 
@@ -198,7 +191,7 @@ a Rex server if none is running.
   ancestors. Embedded `:terminal` buffers are covered by the foreground Neovim
   process; ancestors can identify Neovim when a child uses the same terminal.
   If these do not identify an editor, it uses `ps` to check the foreground
-  process group for Neovim or tmux. Launchers do not need `exec`. Stopped/dead
+  process group for Neovim. Launchers do not need `exec`. Stopped/dead
   processes and editors in other groups do not trigger the fallback. If the
   bounded query fails, navigation falls back to switching Rex panes.
 - **Queued keys:** editor-edge handoffs and companion actions check that their
@@ -211,7 +204,8 @@ a Rex server if none is running.
   tens of milliseconds locally. Ordinary typed input is not buffered during the
   query, so typing immediately after a navigation key can still reach the old
   pane before focus moves.
-- **Nested tmux:** receives the keys; install/configure vim-tmux-navigator there.
+- **Nested multiplexers:** unsupported. Use Rex on its own, not inside or
+  around tmux or another multiplexer.
 - **Not full vim-tmux-navigator parity:** plain Vim, previous-pane toggling
   (Ctrl-\\), automatic saving, and zoom-preservation options are not implemented.
 - **Remote editors:** SSH-hosted Neovim is not supported: Rex sees `ssh`, not

@@ -83,5 +83,4 @@ Check legibility at GitHub's rendered width and keep the GIF reasonably small
 - Suspending Neovim returns pane navigation to Rex.
 - A background editor in a different process group does not capture navigation.
 - No-wrap stops at the outer Rex edge; wrapping works when enabled on both halves.
-- Inside a nested tmux, keys reach vim-tmux-navigator rather than skipping it.
 - Neovim terminal buffers can navigate out; fzf retains its selection keys.
