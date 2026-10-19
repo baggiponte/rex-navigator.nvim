@@ -77,8 +77,19 @@ Default Ctrl mappings activate only when `REX_SESSION` is set to a nonempty
 value. They do not replace bindings outside Rex. Commands and Plug mappings
 are still available; outside Rex they only navigate Neovim windows.
 
-If another plugin maps the same keys, ensure this plugin's `setup()` runs after
-it when using Rex. The last mapping installed wins.
+If you also use vim-tmux-navigator, enable it only inside tmux so it does not
+install competing mappings in Rex or other terminals:
+
+```lua
+{
+  'christoomey/vim-tmux-navigator',
+  enabled = vim.env.TMUX ~= nil and vim.env.TMUX ~= '',
+}
+```
+
+Each plugin checks its own environment: Rex uses `REX_SESSION`; tmux-navigator
+uses `TMUX`. Nested multiplexers are unsupported. Other plugins mapping the
+same keys can still override these mappings; the last mapping installed wins.
 
 ### 2. Load the Rex companion
 
