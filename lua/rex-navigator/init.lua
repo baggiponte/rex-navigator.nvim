@@ -6,8 +6,17 @@ local directions = {
   k = { name = 'Up', direction = 'up' },
   l = { name = 'Right', direction = 'right' },
 }
+---@class rex-navigator.Config
+---@field mappings? boolean Install Ctrl-h/j/k/l in normal mode (inside Rex only)
+---@field terminal? boolean Also install terminal-mode navigation
+---@field wrap? boolean Wrap around Rex panes at the outer layout edge
+---@field rex_cmd? string Rex CLI executable; overrides automatic discovery
+
+---@type rex-navigator.Config
 local defaults = { mappings = true, terminal = true, wrap = true }
+local option_types = { mappings = 'boolean', terminal = 'boolean', wrap = 'boolean', rex_cmd = 'string' }
 local config = vim.deepcopy(defaults)
+local configured = false
 
 local function in_rex()
   return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
@@ -36,14 +45,24 @@ for _, window in ipairs(view.windows or {}) do
 end
 ]]
 
+---Resolve the Rex CLI: `rex_cmd`, then `$REX_BIN_DIR/rex`, then `rex` on PATH.
+---@return string
+function M.executable()
+  return config.rex_cmd or (vim.env.REX_BIN_DIR and (vim.env.REX_BIN_DIR .. '/rex')) or 'rex'
+end
+
+---@return boolean
+function M.is_configured()
+  return configured
+end
+
 local function focus_rex(direction)
   if not vim.env.REX_BLOCK or vim.env.REX_BLOCK == '' then
     vim.notify('rex-navigator: REX_BLOCK is missing; refusing an unscoped handoff', vim.log.levels.WARN)
     return false
   end
-  local executable = config.rex_cmd or (vim.env.REX_BIN_DIR and (vim.env.REX_BIN_DIR .. '/rex')) or 'rex'
   local command = {
-    executable,
+    M.executable(),
     '--autostart=false',
     '--timeout',
     '2s',
@@ -90,18 +109,27 @@ function M.navigate(direction)
   return false
 end
 
----@param opts? {mappings?: boolean, terminal?: boolean, wrap?: boolean, rex_cmd?: string}
+---@param opts? rex-navigator.Config
 function M.setup(opts)
-  config = vim.tbl_extend('force', vim.deepcopy(defaults), opts or {})
+  opts = opts or {}
+  if type(opts) ~= 'table' then
+    error(('rex-navigator: setup() expects a table, got %s'):format(type(opts)), 2)
+  end
+  for name, value in pairs(opts) do
+    local expected = option_types[name]
+    if not expected then
+      error(('rex-navigator: unknown option %q'):format(name), 2)
+    elseif type(value) ~= expected then
+      error(('rex-navigator: option %q must be a %s, got %s'):format(name, expected, type(value)), 2)
+    end
+  end
+  config = vim.tbl_extend('force', vim.deepcopy(defaults), opts)
+  configured = true
 
   for key, target in pairs(directions) do
     local direction = key
     local command = 'RexNavigate' .. target.name
     local plug = '<Plug>(' .. command .. ')'
-    vim.api.nvim_create_user_command(command, function()
-      M.navigate(direction)
-    end, { force = true, desc = 'Navigate ' .. target.direction .. ' through Neovim and Rex' })
-    vim.keymap.set('n', plug, '<Cmd>' .. command .. '<CR>', { silent = true })
 
     -- Leave existing bindings alone outside Rex.
     if in_rex() and config.mappings then

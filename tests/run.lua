@@ -1,5 +1,6 @@
 -- Run from the repository root: nvim --headless -u NONE -l tests/run.lua
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+vim.cmd.runtime('plugin/rex-navigator.lua')
 
 local saved = {
   system = vim.system,
@@ -114,6 +115,17 @@ test('commands and Plug mappings are available', function(plugin)
   assert(vim.fn.maparg('<Plug>(RexNavigateUp)', 'n') ~= '')
 end)
 
+test('commands work before setup() and setup() validates options', function(plugin)
+  vim.cmd.RexNavigateLeft()
+  equal(calls[1].argv[12], 'direction=left')
+  local ok, err = pcall(plugin.setup, { wrap = 'no' })
+  assert(not ok and err:find('"wrap" must be a boolean', 1, true), err)
+  ok, err = pcall(plugin.setup, 'x')
+  assert(not ok and err:find('expects a table, got string', 1, true), err)
+  ok, err = pcall(plugin.setup, { mapings = false })
+  assert(not ok and err:find('unknown option "mapings"', 1, true), err)
+end)
+
 test('custom executable, no wrapping, and opt-out mappings', function(plugin)
   plugin.setup({ mappings = false, wrap = false, rex_cmd = '/custom/rex' })
   equal(vim.fn.maparg('<C-h>', 'n'), '')
@@ -190,6 +202,55 @@ test('CLI failures and missing executables are reported, not thrown', function(p
   end
   equal(plugin.navigate('h'), false)
   assert(notices[2]:find('executable not found', 1, true))
+end)
+
+test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugin)
+  local saved_health = vim.health
+  local reports = {}
+  local function record(level)
+    return function(message)
+      reports[#reports + 1] = level .. ' ' .. message
+    end
+  end
+  vim.health = {
+    start = record('start'),
+    ok = record('ok'),
+    warn = record('warn'),
+    error = record('error'),
+    info = record('info'),
+  }
+  local ok, err = pcall(function()
+    package.loaded['rex-navigator.health'] = nil
+    local health = require('rex-navigator.health')
+    health.check()
+    assert(
+      vim.tbl_contains(reports, 'warn setup() was not called; Ctrl-h/j/k/l are not mapped'),
+      vim.inspect(reports)
+    )
+
+    reports = {}
+    plugin.setup({ rex_cmd = vim.v.progpath })
+    health.check()
+    assert(vim.tbl_contains(reports, 'ok setup() was called'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok REX_BLOCK is set'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok <C-l> -> <Plug>(RexNavigateRight)'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok Rex CLI: ' .. vim.fn.exepath(vim.v.progpath)), vim.inspect(reports))
+
+    reports = {}
+    plugin.setup({ rex_cmd = '/missing/rex' })
+    health.check()
+    assert(vim.tbl_contains(reports, 'error Rex CLI not found: /missing/rex'), vim.inspect(reports))
+
+    reports = {}
+    vim.env.REX_SESSION = nil
+    health.check()
+    assert(
+      vim.tbl_contains(reports, 'warn Not running inside Rex (REX_SESSION is unset)'),
+      vim.inspect(reports)
+    )
+  end)
+  vim.health = saved_health
+  assert(ok, err)
 end)
 
 dofile('tests/handoff.lua')(test, equal, function()
