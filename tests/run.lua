@@ -120,6 +120,8 @@ test('commands work before setup() and setup() validates options', function(plug
   equal(calls[1].argv[12], 'direction=left')
   local ok, err = pcall(plugin.setup, { wrap = 'no' })
   assert(not ok and err:find('"wrap" must be a boolean', 1, true), err)
+  ok, err = pcall(plugin.setup, 'x')
+  assert(not ok and err:find('expects a table, got string', 1, true), err)
   ok, err = pcall(plugin.setup, { mapings = false })
   assert(not ok and err:find('unknown option "mapings"', 1, true), err)
 end)

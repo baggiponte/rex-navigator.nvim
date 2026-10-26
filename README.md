@@ -226,7 +226,7 @@ Run Neovim behavior tests without plugins, a running Rex server, or network acce
 
 ```sh
 nvim --headless -u NONE -l tests/run.lua
-stylua --check lua rex tests
+stylua --check lua plugin rex tests
 ```
 
 The tests exercise real Neovim window navigation with a substituted CLI runner,

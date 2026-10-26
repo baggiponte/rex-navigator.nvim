@@ -112,6 +112,9 @@ end
 ---@param opts? rex-navigator.Config
 function M.setup(opts)
   opts = opts or {}
+  if type(opts) ~= 'table' then
+    error(('rex-navigator: setup() expects a table, got %s'):format(type(opts)), 2)
+  end
   for name, value in pairs(opts) do
     local expected = option_types[name]
     if not expected then
