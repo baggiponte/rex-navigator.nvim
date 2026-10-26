@@ -22,6 +22,8 @@ with a Neovim plugin and a companion Lua module for Rex.
 +---------------------------------------+-------------+
 ```
 
+![Ctrl-l moves from Neovim windows into a Rex shell; Ctrl-h, Ctrl-j and Ctrl-k move back through the editor splits](docs/assets/navigation.gif)
+
 - **Ctrl-l:** file tree → editor A → editor B → Rex shell.
 - **Ctrl-h:** back through the same layout, in reverse.
 
