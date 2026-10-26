@@ -9,7 +9,6 @@ Inspired by [vim-tmux-navigator](https://github.com/christoomey/vim-tmux-navigat
 with a Neovim plugin and a companion Lua module for Rex.
 
 > **Early-stage:** tested locally with Rex Beta build 1203. Rex APIs may change.
-> The repository is currently a private draft; GitHub installation requires access.
 
 ## How it works
 
@@ -34,7 +33,7 @@ file explorers is required.
 **Both halves are required.** Installing only the Neovim plugin cannot stop Rex
 from intercepting the keys.
 
-A real-app recording is planned. See the [demo storyboard and recording guide](docs/demo.md).
+A real-app recording is planned. See the [demo storyboard and recording guide](docs/demo/README.md).
 
 ## Requirements
 
@@ -129,6 +128,18 @@ rex config reload
 
 Restart Neovim if it was already running before the plugin was installed.
 App-level Rex shortcut overrides take precedence over `init.lua`.
+
+### 3. Check the setup
+
+From Neovim inside a Rex pane:
+
+```vim
+:checkhealth rex-navigator
+```
+
+It checks the Neovim version, that `setup()` ran, the Rex session variables,
+the Rex CLI, and who owns Ctrl-h/j/k/l. The Rex companion cannot be inspected
+from Neovim; `rex config check` covers that half.
 
 ### Local development checkout
 
@@ -230,6 +241,8 @@ a Rex server if none is running.
 
 ## Troubleshooting
 
+Start with `:checkhealth rex-navigator` inside a Rex pane.
+
 **Keys skip Neovim windows and go straight to Rex panes**
 
 1. Run `:RexNavigateRight` inside a Neovim layout that has a window to the right.
@@ -259,7 +272,7 @@ The tests exercise real Neovim window navigation with a substituted CLI runner,
 execute the scoped handoff script against a fake Rex API, and check companion
 routing with stubbed process snapshots and focus state. No live Rex session is
 modified. Also run `rex config check` after loading the companion from your Rex
-configuration. See [the demo guide](docs/demo.md) for manual end-to-end checks.
+configuration. See [the demo guide](docs/demo/README.md) for manual end-to-end checks.
 
 ## Acknowledgements
 

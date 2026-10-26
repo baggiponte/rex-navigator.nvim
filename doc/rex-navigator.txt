@@ -30,6 +30,13 @@ COMMANDS                                                *rex-navigator-commands*
 <Plug>(RexNavigateRight)                                 *<Plug>(RexNavigateRight)*
     Normal-mode mapping targets. Set mappings = false for custom bindings.
 
+HEALTH                                                  *rex-navigator-health*
+:checkhealth rex-navigator
+    Checks Neovim 0.10+, that setup() ran, REX_SESSION and REX_BLOCK, the Rex
+    CLI, and the owners of the normal-mode Ctrl-h/j/k/l mappings. Run it from
+    Neovim inside a Rex pane. The Rex companion is checked by
+    `rex config check`, not from Neovim.
+
 LUA                                                     *rex-navigator-lua*
 require('rex-navigator').navigate(direction)
     direction: "h", "j", "k", or "l".

@@ -4,6 +4,24 @@ Record the **real Rex app**, not just one terminal's output. The important part
 is focus crossing from Neovim windows to a second Rex pane. A single asciinema
 or VHS recording of Neovim alone does not capture that whole interaction.
 
+## Quick setup
+
+The shortest path to a recording, from a checkout of this repository:
+
+1. In Rex, open one tab with two side-by-side panes. Load the companion with
+   `setup({ wrap = false })` and run `rex config reload`.
+2. In the right pane, run `clear; echo 'Rex shell'`.
+3. In the left pane, run `nvim -u docs/demo/init.lua`. It loads the plugin from
+   this checkout with `wrap = false`, writes three throwaway files to a temp
+   directory, opens them as `A | B over C`, starts in A, and dims inactive
+   windows so focus is easy to follow.
+4. Turn on a keystroke overlay and record the Rex window. Pausing after each
+   key: Ctrl-l (A → B), Ctrl-l (B → Rex shell), Ctrl-h (back to B), Ctrl-j
+   (B → C), Ctrl-k (C → B), Ctrl-h (B → A). This is the minimal version of
+   the storyboard below, without a file tree.
+5. Trim the recording, then run `docs/demo/make-gif.sh demo.mov` to write
+   `docs/assets/navigation.gif`.
+
 ## Layout
 
 Use a disposable directory with two harmless source files. Do not record a real
@@ -59,10 +77,7 @@ Suggested caption:
 With ffmpeg installed, convert a trimmed recording to a GIF:
 
 ```sh
-mkdir -p docs/assets
-ffmpeg -i demo.mov \
-  -filter_complex '[0:v]fps=12,scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse' \
-  -loop 0 docs/assets/navigation.gif
+docs/demo/make-gif.sh demo.mov
 ```
 
 Then replace the planned-demo sentence in the README with:

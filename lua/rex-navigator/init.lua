@@ -8,6 +8,7 @@ local directions = {
 }
 local defaults = { mappings = true, terminal = true, wrap = true }
 local config = vim.deepcopy(defaults)
+local configured = false
 
 local function in_rex()
   return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
@@ -36,14 +37,24 @@ for _, window in ipairs(view.windows or {}) do
 end
 ]]
 
+---Resolve the Rex CLI: `rex_cmd`, then `$REX_BIN_DIR/rex`, then `rex` on PATH.
+---@return string
+function M.executable()
+  return config.rex_cmd or (vim.env.REX_BIN_DIR and (vim.env.REX_BIN_DIR .. '/rex')) or 'rex'
+end
+
+---@return boolean
+function M.is_configured()
+  return configured
+end
+
 local function focus_rex(direction)
   if not vim.env.REX_BLOCK or vim.env.REX_BLOCK == '' then
     vim.notify('rex-navigator: REX_BLOCK is missing; refusing an unscoped handoff', vim.log.levels.WARN)
     return false
   end
-  local executable = config.rex_cmd or (vim.env.REX_BIN_DIR and (vim.env.REX_BIN_DIR .. '/rex')) or 'rex'
   local command = {
-    executable,
+    M.executable(),
     '--autostart=false',
     '--timeout',
     '2s',
@@ -93,6 +104,7 @@ end
 ---@param opts? {mappings?: boolean, terminal?: boolean, wrap?: boolean, rex_cmd?: string}
 function M.setup(opts)
   config = vim.tbl_extend('force', vim.deepcopy(defaults), opts or {})
+  configured = true
 
   for key, target in pairs(directions) do
     local direction = key

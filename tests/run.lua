@@ -192,6 +192,49 @@ test('CLI failures and missing executables are reported, not thrown', function(p
   assert(notices[2]:find('executable not found', 1, true))
 end)
 
+test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugin)
+  local saved_health = vim.health
+  local reports = {}
+  local function record(level)
+    return function(message)
+      reports[#reports + 1] = level .. ' ' .. message
+    end
+  end
+  vim.health = {
+    start = record('start'),
+    ok = record('ok'),
+    warn = record('warn'),
+    error = record('error'),
+    info = record('info'),
+  }
+  local ok, err = pcall(function()
+    package.loaded['rex-navigator.health'] = nil
+    local health = require('rex-navigator.health')
+    health.check()
+    assert(vim.tbl_contains(reports, 'error setup() was not called'), vim.inspect(reports))
+
+    reports = {}
+    plugin.setup({ rex_cmd = vim.v.progpath })
+    health.check()
+    assert(vim.tbl_contains(reports, 'ok setup() was called'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok REX_BLOCK is set'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok <C-l> -> <Plug>(RexNavigateRight)'), vim.inspect(reports))
+    assert(vim.tbl_contains(reports, 'ok Rex CLI: ' .. vim.fn.exepath(vim.v.progpath)), vim.inspect(reports))
+
+    reports = {}
+    plugin.setup({ rex_cmd = '/missing/rex' })
+    health.check()
+    assert(vim.tbl_contains(reports, 'error Rex CLI not found: /missing/rex'), vim.inspect(reports))
+
+    reports = {}
+    vim.env.REX_SESSION = nil
+    health.check()
+    assert(vim.tbl_contains(reports, 'warn Not running inside Rex (REX_SESSION is unset)'), vim.inspect(reports))
+  end)
+  vim.health = saved_health
+  assert(ok, err)
+end)
+
 dofile('tests/handoff.lua')(test, equal, function()
   return calls[1].argv[11]
 end)
