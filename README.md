@@ -33,8 +33,6 @@ file explorers is required.
 **Both halves are required.** Installing only the Neovim plugin cannot stop Rex
 from intercepting the keys.
 
-A real-app recording is planned. See the [demo storyboard and recording guide](docs/demo/README.md).
-
 ## Requirements
 
 - Neovim **0.10+** (`vim.system`).
@@ -74,7 +72,8 @@ require('rex-navigator').setup()
 
 Default Ctrl mappings activate only when `REX_SESSION` is set to a nonempty
 value. They do not replace bindings outside Rex. Commands and Plug mappings
-are still available; outside Rex they only navigate Neovim windows.
+are defined when the plugin loads, even without `setup()`; outside Rex they
+only navigate Neovim windows.
 
 If you also use vim-tmux-navigator, enable it only inside tmux so it does not
 install competing mappings in Rex or other terminals:
@@ -141,22 +140,6 @@ It checks the Neovim version, that `setup()` ran, the Rex session variables,
 the Rex CLI, and who owns Ctrl-h/j/k/l. The Rex companion cannot be inspected
 from Neovim; `rex config check` covers that half.
 
-### Local development checkout
-
-Use this Neovim specification instead of the GitHub specification:
-
-```lua
-{
-  dir = vim.fn.expand('~/dev/projs/rex-navigator.nvim'),
-  name = 'rex-navigator.nvim',
-  main = 'rex-navigator',
-  lazy = false,
-  opts = {},
-}
-```
-
-Point the Rex `dofile` at the same checkout's `rex/navigator.lua`.
-
 ## Configuration
 
 Call setup once during startup. Defaults:
@@ -204,40 +187,18 @@ its source pane lost focus. Failed CLI calls produce a warning. The CLI runs
 synchronously only at editor edges, with a bounded timeout, and will not start
 a Rex server if none is running.
 
-## Behavior and limitations
+## Limitations
 
-- **Normal and terminal modes:** insert-mode editing keys are untouched.
-  Terminal navigation leaves terminal-input mode. fzf keeps its own terminal
-  keys; buffer-local picker mappings take priority over global mappings.
-- **Shell wrappers:** the companion first checks Rex's foreground process and
-  ancestors. Embedded `:terminal` buffers are covered by the foreground Neovim
-  process; ancestors can identify Neovim when a child uses the same terminal.
-  If these do not identify an editor, it uses `ps` to check the foreground
-  process group for Neovim. Launchers do not need `exec`. Stopped/dead
-  processes and editors in other groups do not trigger the fallback. If the
-  bounded query fails, navigation falls back to switching Rex panes.
-- **Queued keys:** editor-edge handoffs and companion actions check that their
-  source pane is still focused before changing focus or forwarding a key.
-  Overlapping companion navigation actions for the same pane are dropped while
-  a query is in flight. These are stale-work safeguards, not an atomic focus
-  transaction with the app.
-- **Latency:** a fallback `ps` query runs on each navigation key when the fast
-  path does not recognize an editor, including ordinary shells. It usually adds
-  tens of milliseconds locally. Ordinary typed input is not buffered during the
-  query, so typing immediately after a navigation key can still reach the old
-  pane before focus moves.
-- **Nested multiplexers:** unsupported. Use Rex on its own, not inside or
-  around tmux or another multiplexer.
-- **Not full vim-tmux-navigator parity:** plain Vim, previous-pane toggling
-  (Ctrl-\\), automatic saving, and zoom-preservation options are not implemented.
-- **Remote editors:** SSH-hosted Neovim is not supported: Rex sees `ssh`, not
-  the remote editor, and installing the plugin or CLI remotely does not fix
-  local key forwarding.
-- **Detection is process-based:** a Neovim process without this plugin (such as
-  `nvim --clean`, a headless job, or a sudo session missing Rex's environment)
-  can still receive the keys even though it cannot hand focus back to Rex.
-- **Startup:** commands and mappings are installed by `setup()`, not merely by
-  adding the plugin to the runtime path.
+- **Normal and terminal modes only.** Insert-mode keys are untouched. Terminal
+  navigation leaves terminal-input mode; fzf keeps its own Ctrl-j/k.
+- **Detection is process-based.** The companion forwards keys when Rex's
+  foreground process (or its process group, checked with `ps`) is Neovim, so
+  shell launchers work without `exec`. The `ps` fallback adds a few tens of
+  milliseconds per key in plain shells. A Neovim without this plugin (for
+  example `nvim --clean`) still receives the keys but cannot hand focus back.
+- **Unsupported:** nested multiplexers (tmux inside or around Rex),
+  SSH-hosted Neovim, plain Vim, and vim-tmux-navigator extras such as
+  previous-pane toggling, auto-save, and zoom preservation.
 
 ## Troubleshooting
 
@@ -272,7 +233,11 @@ The tests exercise real Neovim window navigation with a substituted CLI runner,
 execute the scoped handoff script against a fake Rex API, and check companion
 routing with stubbed process snapshots and focus state. No live Rex session is
 modified. Also run `rex config check` after loading the companion from your Rex
-configuration. See [the demo guide](docs/demo/README.md) for manual end-to-end checks.
+configuration.
+
+To work on a local checkout with lazy.nvim, replace the GitHub spec with
+`dir = '/path/to/rex-navigator.nvim'` and point the Rex `dofile` at the same
+checkout's `rex/navigator.lua`.
 
 ## Acknowledgements
 

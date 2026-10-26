@@ -14,8 +14,10 @@ SETUP                                                   *rex-navigator-setup*
       -- rex_cmd = '/absolute/path/to/rex',
     })
 <
-Call setup once at startup. Ctrl-h/j/k/l mappings are installed only inside
-Rex (nonempty REX_SESSION). Terminal mappings preserve fzf selection keys.
+Call setup once at startup to install the Ctrl-h/j/k/l mappings. They are
+installed only inside Rex (nonempty REX_SESSION). Terminal mappings preserve
+fzf selection keys. Unknown options or wrong types raise an error. Commands
+and <Plug> mappings are defined when the plugin loads, without setup().
 
 COMMANDS                                                *rex-navigator-commands*
 :RexNavigateLeft                                         *:RexNavigateLeft*

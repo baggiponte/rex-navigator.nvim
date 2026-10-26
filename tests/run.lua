@@ -1,5 +1,6 @@
 -- Run from the repository root: nvim --headless -u NONE -l tests/run.lua
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+vim.cmd.runtime('plugin/rex-navigator.lua')
 
 local saved = {
   system = vim.system,
@@ -114,6 +115,15 @@ test('commands and Plug mappings are available', function(plugin)
   assert(vim.fn.maparg('<Plug>(RexNavigateUp)', 'n') ~= '')
 end)
 
+test('commands work before setup() and setup() validates options', function(plugin)
+  vim.cmd.RexNavigateLeft()
+  equal(calls[1].argv[12], 'direction=left')
+  local ok, err = pcall(plugin.setup, { wrap = 'no' })
+  assert(not ok and err:find('"wrap" must be a boolean', 1, true), err)
+  ok, err = pcall(plugin.setup, { mapings = false })
+  assert(not ok and err:find('unknown option "mapings"', 1, true), err)
+end)
+
 test('custom executable, no wrapping, and opt-out mappings', function(plugin)
   plugin.setup({ mappings = false, wrap = false, rex_cmd = '/custom/rex' })
   equal(vim.fn.maparg('<C-h>', 'n'), '')
@@ -211,7 +221,10 @@ test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugi
     package.loaded['rex-navigator.health'] = nil
     local health = require('rex-navigator.health')
     health.check()
-    assert(vim.tbl_contains(reports, 'error setup() was not called'), vim.inspect(reports))
+    assert(
+      vim.tbl_contains(reports, 'warn setup() was not called; Ctrl-h/j/k/l are not mapped'),
+      vim.inspect(reports)
+    )
 
     reports = {}
     plugin.setup({ rex_cmd = vim.v.progpath })
@@ -229,7 +242,10 @@ test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugi
     reports = {}
     vim.env.REX_SESSION = nil
     health.check()
-    assert(vim.tbl_contains(reports, 'warn Not running inside Rex (REX_SESSION is unset)'), vim.inspect(reports))
+    assert(
+      vim.tbl_contains(reports, 'warn Not running inside Rex (REX_SESSION is unset)'),
+      vim.inspect(reports)
+    )
   end)
   vim.health = saved_health
   assert(ok, err)

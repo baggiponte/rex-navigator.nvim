@@ -19,7 +19,10 @@ function M.check()
   if plugin.is_configured() then
     health.ok('setup() was called')
   else
-    health.error('setup() was not called', { "Add `require('rex-navigator').setup()` or lazy.nvim `opts = {}`" })
+    health.warn(
+      'setup() was not called; Ctrl-h/j/k/l are not mapped',
+      { "Add `require('rex-navigator').setup()` or lazy.nvim `opts = {}`" }
+    )
   end
 
   if not set(vim.env.REX_SESSION) then
@@ -40,7 +43,10 @@ function M.check()
   if vim.fn.executable(executable) == 1 then
     health.ok('Rex CLI: ' .. vim.fn.exepath(executable))
   else
-    health.error('Rex CLI not found: ' .. executable, { 'Set `rex_cmd` to the absolute path of the rex executable' })
+    health.error(
+      'Rex CLI not found: ' .. executable,
+      { 'Set `rex_cmd` to the absolute path of the rex executable' }
+    )
   end
 
   for _, pair in ipairs({ { 'h', 'Left' }, { 'j', 'Down' }, { 'k', 'Up' }, { 'l', 'Right' } }) do
@@ -49,9 +55,15 @@ function M.check()
     if rhs == expected then
       health.ok(lhs .. ' -> ' .. expected)
     elseif rhs == '' then
-      health.warn(lhs .. ' is unmapped', { 'Expected with mappings = false; map ' .. expected .. ' yourself' })
+      health.warn(
+        lhs .. ' is unmapped',
+        { 'Expected with mappings = false; map ' .. expected .. ' yourself' }
+      )
     else
-      health.warn(lhs .. ' is mapped to ' .. rhs, { 'Check `:verbose nmap ' .. lhs .. '` for the plugin that owns it' })
+      health.warn(
+        lhs .. ' is mapped to ' .. rhs,
+        { 'Check `:verbose nmap ' .. lhs .. '` for the plugin that owns it' }
+      )
     end
   end
 

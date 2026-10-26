@@ -6,7 +6,15 @@ local directions = {
   k = { name = 'Up', direction = 'up' },
   l = { name = 'Right', direction = 'right' },
 }
+---@class rex-navigator.Config
+---@field mappings? boolean Install Ctrl-h/j/k/l in normal mode (inside Rex only)
+---@field terminal? boolean Also install terminal-mode navigation
+---@field wrap? boolean Wrap around Rex panes at the outer layout edge
+---@field rex_cmd? string Rex CLI executable; overrides automatic discovery
+
+---@type rex-navigator.Config
 local defaults = { mappings = true, terminal = true, wrap = true }
+local option_types = { mappings = 'boolean', terminal = 'boolean', wrap = 'boolean', rex_cmd = 'string' }
 local config = vim.deepcopy(defaults)
 local configured = false
 
@@ -101,19 +109,24 @@ function M.navigate(direction)
   return false
 end
 
----@param opts? {mappings?: boolean, terminal?: boolean, wrap?: boolean, rex_cmd?: string}
+---@param opts? rex-navigator.Config
 function M.setup(opts)
-  config = vim.tbl_extend('force', vim.deepcopy(defaults), opts or {})
+  opts = opts or {}
+  for name, value in pairs(opts) do
+    local expected = option_types[name]
+    if not expected then
+      error(('rex-navigator: unknown option %q'):format(name), 2)
+    elseif type(value) ~= expected then
+      error(('rex-navigator: option %q must be a %s, got %s'):format(name, expected, type(value)), 2)
+    end
+  end
+  config = vim.tbl_extend('force', vim.deepcopy(defaults), opts)
   configured = true
 
   for key, target in pairs(directions) do
     local direction = key
     local command = 'RexNavigate' .. target.name
     local plug = '<Plug>(' .. command .. ')'
-    vim.api.nvim_create_user_command(command, function()
-      M.navigate(direction)
-    end, { force = true, desc = 'Navigate ' .. target.direction .. ' through Neovim and Rex' })
-    vim.keymap.set('n', plug, '<Cmd>' .. command .. '<CR>', { silent = true })
 
     -- Leave existing bindings alone outside Rex.
     if in_rex() and config.mappings then
