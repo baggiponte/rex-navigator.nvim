@@ -66,6 +66,16 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 Open Neovim once and let lazy.nvim finish installing before configuring Rex.
 
+With Neovim 0.12's built-in [`vim.pack`](https://neovim.io/doc/user/pack.html#vim.pack):
+
+```lua
+vim.pack.add({ 'https://github.com/baggiponte/rex-navigator.nvim' })
+require('rex-navigator').setup()
+```
+
+`vim.pack` installs the plugin on the next start but does not call `setup()`
+for you, so keep the explicit call.
+
 With another plugin manager, add this repository to Neovim's runtime path, then:
 
 ```lua
@@ -87,6 +97,14 @@ install competing mappings in Rex or other terminals:
 }
 ```
 
+With `vim.pack`:
+
+```lua
+if vim.env.TMUX ~= nil and vim.env.TMUX ~= '' then
+  vim.pack.add({ 'https://github.com/christoomey/vim-tmux-navigator' })
+end
+```
+
 Each plugin checks its own environment: Rex uses `REX_SESSION`; tmux-navigator
 uses `TMUX`. Nested multiplexers are unsupported. Other plugins mapping the
 same keys can still override these mappings; the last mapping installed wins.
@@ -106,12 +124,21 @@ if not ok then
 end
 ```
 
-That is lazy.nvim's default installation path. **The Rex app may not inherit
-`XDG_DATA_HOME` from your shell.** If you set it in a shell profile or use
-`NVIM_APPNAME`, obtain the default lazy.nvim path inside Neovim:
+That is lazy.nvim's default installation path. With `vim.pack`, use its
+default path instead:
+
+```lua
+local plugin = data .. '/nvim/site/pack/core/opt/rex-navigator.nvim'
+```
+
+**The Rex app may not inherit `XDG_DATA_HOME` from your shell.** If you set it
+in a shell profile or use `NVIM_APPNAME`, obtain the default path inside Neovim:
 
 ```vim
+" lazy.nvim
 :lua print(vim.fn.stdpath('data') .. '/lazy/rex-navigator.nvim')
+" vim.pack
+:lua print(vim.fn.stdpath('data') .. '/site/pack/core/opt/rex-navigator.nvim')
 ```
 
 Set `plugin` to that printed absolute path. For a custom lazy.nvim root or a
