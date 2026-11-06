@@ -92,7 +92,7 @@ local function navigate(ctx, key, direction, wrap)
     if editor then
       rex.client.queue('pane.send_key', { key = 'ctrl+' .. key })
     else
-      rex.client.queue('pane.focus', { direction = direction, wrap = wrap })
+      rex.session.focus_direction{ direction = direction, wrap = wrap }
     end
   end)
   blocks[ctx.block_id] = nil
