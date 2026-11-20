@@ -38,9 +38,10 @@ from intercepting the keys.
 ## Requirements
 
 - Neovim **0.10+** (`vim.system`).
-- Rex with Lua custom actions, `pane.send_key`, `pane.focus`, terminal process
-  inspection, `rex.exec`, and `rex do` with session view/focus APIs. Initially
-  checked against **Beta 1203**.
+- Rex with Lua custom actions, `pane.send_key`, `session.focus_direction`,
+  terminal process inspection, `rex.exec`, and `rex do` with session view/focus
+  APIs. Initially checked against **Beta 1203**; non-editor pane navigation
+  confirmed on **Beta 0.1.0 (1829)**.
 - The Rex CLI, found through `REX_BIN_DIR`, `PATH`, or an explicit `rex_cmd`.
 - macOS `ps` or a compatible Linux `ps` (such as procps), available on the Rex
   server's PATH for wrapper detection. BusyBox variants may lack the required
