@@ -223,8 +223,9 @@ a Rex server if none is running.
   navigation leaves terminal-input mode; fzf keeps its own Ctrl-j/k.
 - **Detection is process-based.** The companion forwards keys when Rex's
   foreground process (or its process group, checked with `ps`) is Neovim, so
-  shell launchers work without `exec`. The `ps` fallback adds a few tens of
-  milliseconds per key in plain shells. A Neovim without this plugin (for
+  shell launchers work without `exec`. The `ps` fallback runs only when the
+  foreground program has the terminal in raw mode (a TUI, possibly a wrapped
+  Neovim); shells at a prompt skip it. It adds about 20 ms to those keys. A Neovim without this plugin (for
   example `nvim --clean`) still receives the keys but cannot hand focus back.
 - **Unsupported:** nested multiplexers (tmux inside or around Rex),
   SSH-hosted Neovim, plain Vim, and vim-tmux-navigator extras such as
