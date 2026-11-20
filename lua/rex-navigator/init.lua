@@ -77,7 +77,6 @@ local function focus_rex(direction)
     'wrap=' .. tostring(config.wrap ~= false),
   }
 
-  -- Only spawn at an editor edge. Rex drops stale keys without refocusing us.
   local ok, result = pcall(function()
     return vim.system(command, { text = true }):wait(3000)
   end)
@@ -131,7 +130,6 @@ function M.setup(opts)
     local command = 'RexNavigate' .. target.name
     local plug = '<Plug>(' .. command .. ')'
 
-    -- Leave existing bindings alone outside Rex.
     if in_rex() and config.mappings then
       vim.keymap.set('n', '<C-' .. key .. '>', plug, {
         silent = true,
@@ -142,7 +140,6 @@ function M.setup(opts)
           't',
           '<C-' .. key .. '>',
           function()
-            -- Buffer-local picker mappings take priority; also preserve fzf defaults.
             if vim.bo.filetype == 'fzf' then
               return '<C-' .. direction .. '>'
             end

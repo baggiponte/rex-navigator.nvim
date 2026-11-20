@@ -1,4 +1,3 @@
--- :checkhealth rex-navigator
 local M = {}
 
 local function set(value)

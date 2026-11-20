@@ -9,8 +9,6 @@ local function editor_in_foreground_group(foreground)
     return false
   end
 
-  -- Rex may report a shell launcher as the foreground group leader. Look for
-  -- Neovim in that group too, without mistaking background editors for it.
   -- Explicit columns work on macOS and Linux; no shell or command-line args.
   local result = rex.exec({ 'ps', '-A', '-o', 'pid=', '-o', 'pgid=', '-o', 'state=', '-o', 'comm=' }, {
     timeout = 0.5,
@@ -88,7 +86,6 @@ local function navigate(ctx, key, direction, wrap)
     if not source_focused(ctx) then
       return
     end
-    -- This recheck cannot make the client's deferred queue atomic.
     if editor then
       rex.client.queue('pane.send_key', { key = 'ctrl+' .. key })
     else
