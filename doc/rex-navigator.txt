@@ -48,6 +48,9 @@ require('rex-navigator').navigate(direction)
     no Neovim window exists in that direction outside Rex.
     CLI failures show a warning. Calls at editor edges have a bounded timeout
     and do not start a Rex server. The source pane must have REX_BLOCK set.
+    The first edge hop starts one `rex do` helper that serves later hops over
+    stdin and exits with Neovim; a one-off `rex do` is used if it is
+    unavailable.
 
 LIMITATIONS                                             *rex-navigator-limits*
 Directional navigation only. Nested multiplexers are unsupported.

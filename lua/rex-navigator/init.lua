@@ -22,26 +22,47 @@ local function in_rex()
   return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
 end
 
--- Keep source and navigation data in argv, never interpolated into Lua.
+-- Keep source and navigation data in argv or stdin, never interpolated into Lua.
+-- With serve=true the script stays running and reads one "direction wrap"
+-- request per line, answering "ok" or "err <message>", so each edge hop skips
+-- starting a new rex process. It exits when Neovim closes its stdin.
 local handoff_script = [[
-if not rex.block_id or rex.block_id == '' then
-  error('missing source block', 0)
-end
-local view, err = rex.session.view({})
-if not view or err then
-  error(err or 'session.view returned no view', 0)
-end
-if not view.active_window_id then
-  return
-end
-for _, window in ipairs(view.windows or {}) do
-  if window.window_id == view.active_window_id and window.focused_block_id == rex.block_id then
-    local result, focus_err = rex.session.focus_direction({ direction = rex.args.direction, wrap = rex.args.wrap })
-    if not result or focus_err then
-      error(focus_err or 'session.focus_direction returned no result', 0)
-    end
+local function handoff(direction, wrap)
+  if not rex.block_id or rex.block_id == '' then
+    error('missing source block', 0)
+  end
+  local view, err = rex.session.view({})
+  if not view or err then
+    error(err or 'session.view returned no view', 0)
+  end
+  if not view.active_window_id then
     return
   end
+  for _, window in ipairs(view.windows or {}) do
+    if window.window_id == view.active_window_id and window.focused_block_id == rex.block_id then
+      local result, focus_err = rex.session.focus_direction({ direction = direction, wrap = wrap })
+      if not result or focus_err then
+        error(focus_err or 'session.focus_direction returned no result', 0)
+      end
+      return
+    end
+  end
+end
+
+if not rex.args.serve then
+  return handoff(rex.args.direction, rex.args.wrap)
+end
+local valid = { left = true, right = true, up = true, down = true }
+for line in io.lines() do
+  local direction, wrap = line:match('^(%a+) (%a+)$')
+  local ok, err = true, nil
+  if valid[direction] and (wrap == 'true' or wrap == 'false') then
+    ok, err = pcall(handoff, direction, wrap == 'true')
+  else
+    ok, err = false, 'malformed request'
+  end
+  io.write(ok and 'ok\n' or ('err ' .. (tostring(err):gsub('[\r\n]+', ' ')) .. '\n'))
+  io.flush()
 end
 ]]
 
@@ -56,10 +77,107 @@ function M.is_configured()
   return configured
 end
 
+local helper_timeout = 2000
+local helper
+
+local function stop_helper()
+  local current = helper
+  helper = nil
+  if current and not current.exited then
+    pcall(current.process.kill, current.process, 15)
+  end
+end
+
+local function start_helper()
+  local state = { buffer = '', replies = {} }
+  local command = {
+    M.executable(),
+    '--autostart=false',
+    'do',
+    '-s',
+    vim.env.REX_SESSION,
+    '-b',
+    vim.env.REX_BLOCK,
+    '-e',
+    handoff_script,
+    'serve=true',
+  }
+  -- Callbacks run in a fast context: only touch this table.
+  local ok, process = pcall(vim.system, command, {
+    stdin = true,
+    text = true,
+    stdout = function(_, data)
+      if not data then
+        return
+      end
+      state.buffer = state.buffer .. data
+      for reply in state.buffer:gmatch('([^\n]*)\n') do
+        state.replies[#state.replies + 1] = reply
+      end
+      state.buffer = state.buffer:match('[^\n]*$')
+    end,
+  }, function()
+    state.exited = true
+  end)
+  if not ok or not process then
+    return nil
+  end
+  state.process = process
+  return state
+end
+
+-- Returns true or false like focus_rex, or nil when the helper is unavailable
+-- and the one-shot path should run instead.
+local function helper_handoff(direction)
+  if helper and helper.exited then
+    helper = nil
+  end
+  if not helper then
+    helper = start_helper()
+    if not helper then
+      return nil
+    end
+    vim.api.nvim_create_autocmd('VimLeavePre', {
+      group = vim.api.nvim_create_augroup('rex-navigator-helper', { clear = true }),
+      once = true,
+      callback = stop_helper,
+    })
+  end
+  local current = helper
+  local request = direction .. ' ' .. tostring(config.wrap ~= false) .. '\n'
+  if not pcall(current.process.write, current.process, request) then
+    stop_helper()
+    return nil
+  end
+  vim.wait(helper_timeout, function()
+    return #current.replies > 0 or current.exited == true
+  end, 1)
+  local reply = table.remove(current.replies, 1)
+  if not reply then
+    local exited = current.exited
+    stop_helper()
+    if exited then
+      return nil
+    end
+    -- The request may still land, so do not retry it through another path.
+    vim.notify('rex-navigator: Rex did not answer the handoff in time', vim.log.levels.WARN)
+    return false
+  end
+  if reply == 'ok' then
+    return true
+  end
+  vim.notify('rex-navigator: ' .. reply:gsub('^err ', ''), vim.log.levels.WARN)
+  return false
+end
+
 local function focus_rex(direction)
   if not vim.env.REX_BLOCK or vim.env.REX_BLOCK == '' then
     vim.notify('rex-navigator: REX_BLOCK is missing; refusing an unscoped handoff', vim.log.levels.WARN)
     return false
+  end
+  local handled = helper_handoff(direction)
+  if handled ~= nil then
+    return handled
   end
   local command = {
     M.executable(),
@@ -124,6 +242,8 @@ function M.setup(opts)
   end
   config = vim.tbl_extend('force', vim.deepcopy(defaults), opts)
   configured = true
+  -- A running helper keeps the executable it started with.
+  stop_helper()
 
   for key, target in pairs(directions) do
     local direction = key

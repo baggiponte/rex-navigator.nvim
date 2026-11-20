@@ -112,6 +112,43 @@ return function(test, equal, get_script)
     end
   end)
 
+  test('serving handoff script answers each stdin request in order', function(plugin)
+    local f = fixture(plugin)
+    local lines, written = { 'right true', 'up false', 'sideways true', 'left maybe', 'down true' }, {}
+    f.api.args = { serve = true }
+    f.view.windows[1].focused_block_id = 'block:test'
+    local calls = 0
+    f.api.session.focus_direction = function(args)
+      calls = calls + 1
+      f.focuses[#f.focuses + 1] = args
+      if calls == 3 then
+        error('focus\nexception', 0)
+      end
+      return {}
+    end
+    local env = getfenv(f.run)
+    env.io = {
+      lines = function()
+        local i = 0
+        return function()
+          i = i + 1
+          return lines[i]
+        end
+      end,
+      write = function(data)
+        written[#written + 1] = data
+      end,
+      flush = function() end,
+    }
+    f.run()
+    equal(f.focuses, {
+      { direction = 'right', wrap = true },
+      { direction = 'up', wrap = false },
+      { direction = 'down', wrap = true },
+    })
+    equal(written, { 'ok\n', 'ok\n', 'err malformed request\n', 'err malformed request\n', 'err focus exception\n' })
+  end)
+
   test('handoff script also refuses missing source context', function(plugin)
     local f = fixture(plugin)
     f.api.block_id = nil

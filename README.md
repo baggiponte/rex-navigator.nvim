@@ -212,9 +212,12 @@ The companion still binds Ctrl-h/j/k/l by default. Its action names are
 
 `navigate` returns whether navigation was handled. A successful Rex call returns
 true even if Rex has no neighboring pane or a queued key was dropped because
-its source pane lost focus. Failed CLI calls produce a warning. The CLI runs
-synchronously only at editor edges, with a bounded timeout, and will not start
-a Rex server if none is running.
+its source pane lost focus. Failed CLI calls produce a warning. The CLI is
+used only at editor edges, with a bounded timeout, and will not start a Rex
+server if none is running. The first edge hop starts one `rex do` helper that
+stays running for the rest of the Neovim session, so later hops skip process
+startup (about 15 ms each); it exits with Neovim. If the helper is unavailable,
+the plugin falls back to a one-off `rex do` per hop.
 
 ## Limitations
 
