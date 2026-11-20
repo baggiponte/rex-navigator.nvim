@@ -148,6 +148,41 @@ test('fzf retains terminal selection keys', function(plugin)
   vim.bo.filetype = ''
 end)
 
+test('terminal_passthrough accepts custom filetypes', function(plugin)
+  plugin.setup({ terminal_passthrough = { 'lazygit' } })
+  local mapping = vim.fn.maparg('<C-k>', 't', false, true)
+  vim.bo.filetype = 'lazygit'
+  equal(mapping.callback(), '<C-k>')
+  vim.bo.filetype = 'fzf'
+  equal(mapping.callback(), '<C-\\><C-n><Cmd>RexNavigateUp<CR>')
+  vim.bo.filetype = ''
+end)
+
+test('terminal_passthrough accepts a predicate', function(plugin)
+  local seen
+  plugin.setup({
+    terminal_passthrough = function(buf)
+      seen = buf
+      return vim.b[buf].keep_keys == true
+    end,
+  })
+  local mapping = vim.fn.maparg('<C-l>', 't', false, true)
+  equal(mapping.callback(), '<C-\\><C-n><Cmd>RexNavigateRight<CR>')
+  equal(seen, vim.api.nvim_get_current_buf())
+  vim.b.keep_keys = true
+  equal(mapping.callback(), '<C-l>')
+  vim.b.keep_keys = nil
+end)
+
+test('terminal_passthrough is validated', function(plugin)
+  local ok, err = pcall(plugin.setup, { terminal_passthrough = 'fzf' })
+  assert(not ok and err:find('"terminal_passthrough" must be a table or function, got string', 1, true), err)
+  ok, err = pcall(plugin.setup, { terminal_passthrough = { 'fzf', 1 } })
+  assert(not ok and err:find('must list filetype strings, got number at index 2', 1, true), err)
+  ok, err = pcall(plugin.setup, { terminal_passthrough = { ft = 'fzf' } })
+  assert(not ok and err:find('must be a list of filetypes', 1, true), err)
+end)
+
 test('ordinary terminal mappings leave terminal mode and run navigation', function(plugin)
   plugin.setup()
   vim.bo.filetype = ''

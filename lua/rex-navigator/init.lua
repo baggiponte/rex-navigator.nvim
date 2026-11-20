@@ -11,12 +11,42 @@ local directions = {
 ---@field terminal? boolean Also install terminal-mode navigation
 ---@field wrap? boolean Wrap around Rex panes at the outer layout edge
 ---@field rex_cmd? string Rex CLI executable; overrides automatic discovery
+---@field terminal_passthrough? string[]|fun(buf: integer): boolean Terminal filetypes (or a predicate) that keep their own Ctrl-h/j/k/l
 
 ---@type rex-navigator.Config
-local defaults = { mappings = true, terminal = true, wrap = true }
-local option_types = { mappings = 'boolean', terminal = 'boolean', wrap = 'boolean', rex_cmd = 'string' }
+local defaults = { mappings = true, terminal = true, wrap = true, terminal_passthrough = { 'fzf' } }
+local option_types = {
+  mappings = 'boolean',
+  terminal = 'boolean',
+  wrap = 'boolean',
+  rex_cmd = 'string',
+  terminal_passthrough = { 'table', 'function' },
+}
 local config = vim.deepcopy(defaults)
 local configured = false
+
+local function validate_passthrough(value)
+  if type(value) ~= 'table' then
+    return
+  end
+  for index, filetype in ipairs(value) do
+    if type(filetype) ~= 'string' then
+      local message = 'rex-navigator: option "terminal_passthrough" must list filetype strings, got %s at index %d'
+      error(message:format(type(filetype), index), 3)
+    end
+  end
+  if #value ~= vim.tbl_count(value) then
+    error('rex-navigator: option "terminal_passthrough" must be a list of filetypes', 3)
+  end
+end
+
+local function passthrough(buf)
+  local rule = config.terminal_passthrough
+  if type(rule) == 'function' then
+    return rule(buf) == true
+  end
+  return vim.tbl_contains(rule, vim.bo[buf].filetype)
+end
 
 local function in_rex()
   return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
@@ -118,10 +148,16 @@ function M.setup(opts)
     local expected = option_types[name]
     if not expected then
       error(('rex-navigator: unknown option %q'):format(name), 2)
-    elseif type(value) ~= expected then
-      error(('rex-navigator: option %q must be a %s, got %s'):format(name, expected, type(value)), 2)
+    end
+    expected = type(expected) == 'table' and expected or { expected }
+    if not vim.tbl_contains(expected, type(value)) then
+      error(
+        ('rex-navigator: option %q must be a %s, got %s'):format(name, table.concat(expected, ' or '), type(value)),
+        2
+      )
     end
   end
+  validate_passthrough(opts.terminal_passthrough)
   config = vim.tbl_extend('force', vim.deepcopy(defaults), opts)
   configured = true
 
@@ -140,7 +176,7 @@ function M.setup(opts)
           't',
           '<C-' .. key .. '>',
           function()
-            if vim.bo.filetype == 'fzf' then
+            if passthrough(vim.api.nvim_get_current_buf()) then
               return '<C-' .. direction .. '>'
             end
             return '<C-\\><C-n><Cmd>' .. command .. '<CR>'
