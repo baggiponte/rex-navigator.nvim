@@ -57,8 +57,8 @@ leaves terminal-input mode. SSH-hosted Neovim is unsupported: Rex sees ssh,
 not the remote editor. Installing the plugin or CLI remotely is insufficient.
 
 Detection is process-based: Neovim without this plugin can receive navigation
-keys but cannot hand focus back to Rex. Wrapper detection invokes ps, including
-from plain shells. It adds latency; ordinary typed input is not buffered while
-it runs. Concurrent/stale navigation is dropped, not replayed in another pane.
+keys but cannot hand focus back to Rex. Wrapper detection invokes ps only when
+the foreground program has the terminal in raw mode, not from shells at a
+prompt. It adds latency; ordinary typed input is not buffered while it runs. Concurrent/stale navigation is dropped, not replayed in another pane.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

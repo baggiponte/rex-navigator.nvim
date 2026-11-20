@@ -17,6 +17,9 @@ return function(test, equal)
       queued = {},
       focused = {},
       process_calls = {},
+      mode_calls = {},
+      -- Raw mode, as with Neovim under a wrapper: the ps scan still runs.
+      input_mode = { canonical = false, echo = false, signals = false },
       view_calls = {},
       exec_calls = 0,
       views = { ['session:test'] = focused_view('block:test') },
@@ -32,6 +35,10 @@ return function(test, equal)
       block = {
         call = function(creator, method, args)
           equal(creator, 'com.superlogical.terminal')
+          if method == 'input_mode' then
+            f.mode_calls[#f.mode_calls + 1] = args
+            return f.input_mode, f.input_mode_error
+          end
           equal(method, 'process')
           f.process_calls[#f.process_calls + 1] = args
           return f.process, f.process_error
@@ -108,6 +115,35 @@ return function(test, equal)
     f.run('up')
     equal(f.queued[2], { 'pane.send_key', { key = 'ctrl+k' } })
     equal(f.exec_calls, 2)
+  end)
+
+  test('companion skips ps when the foreground keeps terminal signals on', function()
+    local f = fixture()
+    shell(f)
+    f.input_mode = { canonical = false, echo = false, signals = true }
+    f.run()
+    equal(f.exec_calls, 0)
+    equal(f.focused[1], { direction = 'right', wrap = true })
+    equal(f.mode_calls, { { session_id = f.ctx.session_id, block_id = f.ctx.block_id } })
+    f.input_mode = { canonical = true, echo = true, signals = true }
+    f.run()
+    equal(f.exec_calls, 0)
+    equal(#f.focused, 2)
+  end)
+
+  test('companion still scans with ps when the input mode is raw or unknown', function()
+    local f = fixture()
+    shell(f)
+    for _, mode in ipairs({ false, {}, { signals = false } }) do
+      f.input_mode = mode or nil
+      f.run()
+    end
+    f.input_mode = { signals = true }
+    f.input_mode_error = 'input_mode unavailable'
+    f.run()
+    equal(f.exec_calls, 4)
+    equal(#f.queued, 4)
+    equal(#f.focused, 0)
   end)
 
   test('companion excludes background, stopped, dead, and zombie editors', function()

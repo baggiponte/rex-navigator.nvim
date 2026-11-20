@@ -32,6 +32,17 @@ local function editor_in_foreground_group(foreground)
   return editors[groups[foreground.pid]] == true
 end
 
+-- Neovim reads the terminal in raw mode, which clears ISIG. A shell waiting
+-- at its prompt, or a cooked-mode program, keeps signals on, so it cannot be
+-- a wrapped Neovim and the ps scan is skipped. Unknown modes still scan.
+local function raw_input(ctx)
+  local mode, err = rex.block.call('com.superlogical.terminal', 'input_mode', {
+    session_id = ctx.session_id,
+    block_id = ctx.block_id,
+  })
+  return not mode or err ~= nil or mode.signals ~= true
+end
+
 local function editor_running(ctx)
   local process, err = rex.block.call('com.superlogical.terminal', 'process', {
     session_id = ctx.session_id,
@@ -51,7 +62,7 @@ local function editor_running(ctx)
       return true
     end
   end
-  return editor_in_foreground_group(process.foreground)
+  return raw_input(ctx) and editor_in_foreground_group(process.foreground)
 end
 
 local function source_focused(ctx)
