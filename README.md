@@ -178,6 +178,7 @@ require('rex-navigator').setup({
   mappings = true, -- install Ctrl-h/j/k/l in normal mode
   terminal = true, -- also install terminal-mode navigation
   wrap = true,     -- wrap around Rex panes at the outer layout edge
+  terminal_passthrough = { 'fzf' }, -- terminal filetypes (or a function(buf)) that keep Ctrl-h/j/k/l
   -- rex_cmd = '/absolute/path/to/rex', -- override automatic CLI discovery
 })
 ```
@@ -219,7 +220,8 @@ a Rex server if none is running.
 ## Limitations
 
 - **Normal and terminal modes only.** Insert-mode keys are untouched. Terminal
-  navigation leaves terminal-input mode; fzf keeps its own Ctrl-j/k.
+  navigation leaves terminal-input mode; filetypes in `terminal_passthrough`
+  (fzf by default) keep their own Ctrl-h/j/k/l.
 - **Detection is process-based.** The companion forwards keys when Rex's
   foreground process (or its process group, checked with `ps`) is Neovim, so
   shell launchers work without `exec`. The `ps` fallback adds a few tens of

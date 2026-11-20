@@ -11,13 +11,22 @@ SETUP                                                   *rex-navigator-setup*
       mappings = true,
       terminal = true,
       wrap = true,
+      terminal_passthrough = { 'fzf' },
       -- rex_cmd = '/absolute/path/to/rex',
     })
 <
 Call setup once at startup to install the Ctrl-h/j/k/l mappings. They are
-installed only inside Rex (nonempty REX_SESSION). Terminal mappings preserve
-fzf selection keys. Unknown options or wrong types raise an error. Commands
-and <Plug> mappings are defined when the plugin loads, without setup().
+installed only inside Rex (nonempty REX_SESSION). Unknown options or wrong
+types raise an error. Commands and <Plug> mappings are defined when the plugin
+loads, without setup().
+
+                                          *rex-navigator-terminal_passthrough*
+terminal_passthrough ~
+    Terminal buffers whose program needs Ctrl-h/j/k/l itself (pickers,
+    lazygit in a float). Either a list of filetypes, default `{ 'fzf' }`, or
+    a function that receives the terminal buffer number and returns true to
+    pass the key through. Setting it replaces the default list, so include
+    'fzf' if you still want it.
 
 COMMANDS                                                *rex-navigator-commands*
 :RexNavigateLeft                                         *:RexNavigateLeft*
