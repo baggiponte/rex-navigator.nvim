@@ -1,5 +1,6 @@
--- Neovim handles its own windows, then calls Rex at an edge. Sending a key
--- with pane.send_key bypasses Rex bindings, so this cannot recurse.
+-- Neovim handles its own windows, then calls Rex at an edge. Keys go to the
+-- source block with block.event, which bypasses Rex bindings, so this cannot
+-- recurse.
 local function handles_navigation(p)
   return p and p.name == 'nvim'
 end
@@ -78,6 +79,43 @@ local function source_focused(ctx)
   return false
 end
 
+-- block.event and session.focus_direction run on the server now, instead of
+-- a deferred client queue, so they follow the focus check immediately and the
+-- key always lands in the source block. focus_direction has no source block
+-- argument and starts from the focused block; the check above guards that.
+local function send_key(ctx, key)
+  local result, err = rex.call('block.event', {
+    session_id = ctx.session_id,
+    block_id = ctx.block_id,
+    event = {
+      type = 'key',
+      payload = {
+        key = 'key_' .. key,
+        mods = 'ctrl',
+        consumed_mods = '',
+        text = '',
+        unshifted_codepoint = key:byte(),
+        composing = false,
+        action = 'press',
+      },
+    },
+  })
+  if not result or err then
+    error(err or 'block.event returned no result', 0)
+  end
+end
+
+local function focus(ctx, direction, wrap)
+  local result, err = rex.session.focus_direction({
+    session_id = ctx.session_id,
+    direction = direction,
+    wrap = wrap,
+  })
+  if not result or err then
+    error(err or 'session.focus_direction returned no result', 0)
+  end
+end
+
 local in_flight = {}
 
 local function navigate(ctx, key, direction, wrap)
@@ -98,9 +136,9 @@ local function navigate(ctx, key, direction, wrap)
       return
     end
     if editor then
-      rex.client.queue('pane.send_key', { key = 'ctrl+' .. key })
+      send_key(ctx, key)
     else
-      rex.session.focus_direction{ direction = direction, wrap = wrap }
+      focus(ctx, direction, wrap)
     end
   end)
   blocks[ctx.block_id] = nil

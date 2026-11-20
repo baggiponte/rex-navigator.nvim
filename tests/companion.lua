@@ -7,6 +7,25 @@ return function(test, equal)
     }
   end
 
+  local function key_event(ctx, key)
+    return {
+      session_id = ctx.session_id,
+      block_id = ctx.block_id,
+      event = {
+        type = 'key',
+        payload = {
+          key = 'key_' .. key,
+          mods = 'ctrl',
+          consumed_mods = '',
+          text = '',
+          unshifted_codepoint = key:byte(),
+          composing = false,
+          action = 'press',
+        },
+      },
+    }
+  end
+
   local function fixture(options)
     local f = {
       ctx = { session_id = 'session:test', block_id = 'block:test' },
@@ -14,7 +33,7 @@ return function(test, equal)
       result = { ok = true, code = 0, stdout = '', stderr = '', timed_out = false },
       actions = {},
       bindings = {},
-      queued = {},
+      sent = {},
       focused = {},
       process_calls = {},
       mode_calls = {},
@@ -60,16 +79,14 @@ return function(test, equal)
         end,
         focus_direction = function(args)
           f.focused[#f.focused + 1] = args
+          return { revision = 1 }, f.focus_error
         end,
       },
-      client = {
-        queue = function(name, args)
-          if f.on_queue then
-            f.on_queue()
-          end
-          f.queued[#f.queued + 1] = { name, args }
-        end,
-      },
+      call = function(method, args)
+        equal(method, 'block.event')
+        f.sent[#f.sent + 1] = args
+        return {}, f.call_error
+      end,
     }
     dofile('rex/navigator.lua').setup(options)
     f.run = function(direction, ctx)
@@ -90,10 +107,10 @@ return function(test, equal)
       equal(f.bindings['ctrl+' .. key], 'rex_navigate_' .. direction)
       f.process = { foreground = { name = 'nvim', pid = 100 } }
       f.run(direction)
-      equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
+      equal(f.sent[#f.sent], key_event(f.ctx, key))
       f.process = { foreground = { name = 'child' }, ancestors = { { name = 'sh' }, { name = 'nvim' } } }
       f.run(direction)
-      equal(f.queued[#f.queued], { 'pane.send_key', { key = 'ctrl+' .. key } })
+      equal(f.sent[#f.sent], key_event(f.ctx, key))
     end
     equal(f.exec_calls, 0)
     equal(#f.process_calls, 8)
@@ -110,10 +127,10 @@ return function(test, equal)
     local f = fixture()
     shell(f)
     f.run()
-    equal(f.queued[1], { 'pane.send_key', { key = 'ctrl+l' } })
+    equal(f.sent[1], key_event(f.ctx, 'l'))
     f.result.stdout = '100 90 S /bin/sh\n110 90 R /opt/bin/nvim\n'
     f.run('up')
-    equal(f.queued[2], { 'pane.send_key', { key = 'ctrl+k' } })
+    equal(f.sent[2], key_event(f.ctx, 'k'))
     equal(f.exec_calls, 2)
   end)
 
@@ -123,7 +140,7 @@ return function(test, equal)
     f.input_mode = { canonical = false, echo = false, signals = true }
     f.run()
     equal(f.exec_calls, 0)
-    equal(f.focused[1], { direction = 'right', wrap = true })
+    equal(f.focused[1], { session_id = 'session:test', direction = 'right', wrap = true })
     equal(f.mode_calls, { { session_id = f.ctx.session_id, block_id = f.ctx.block_id } })
     f.input_mode = { canonical = true, echo = true, signals = true }
     f.run()
@@ -142,7 +159,7 @@ return function(test, equal)
     f.input_mode_error = 'input_mode unavailable'
     f.run()
     equal(f.exec_calls, 4)
-    equal(#f.queued, 4)
+    equal(#f.sent, 4)
     equal(#f.focused, 0)
   end)
 
@@ -161,7 +178,7 @@ return function(test, equal)
     }) do
       f.result.stdout = '100 90 S /bin/sh\n' .. editor .. '\nmalformed line\n'
       f.run()
-      equal(f.focused[#f.focused], { direction = 'right', wrap = true })
+      equal(f.focused[#f.focused], { session_id = 'session:test', direction = 'right', wrap = true })
     end
   end)
 
@@ -178,7 +195,7 @@ return function(test, equal)
       f.result = result or nil
       f.exec_error = not result and 'ps not found' or nil
       f.run('left')
-      equal(f.focused[#f.focused], { direction = 'left', wrap = false })
+      equal(f.focused[#f.focused], { session_id = 'session:test', direction = 'left', wrap = false })
     end
     equal(f.exec_calls, 4)
   end)
@@ -188,12 +205,12 @@ return function(test, equal)
     for _, process in ipairs({ false, {}, { foreground = { name = 'sh' } } }) do
       f.process = process or nil
       f.run()
-      equal(f.focused[#f.focused], { direction = 'right', wrap = true })
+      equal(f.focused[#f.focused], { session_id = 'session:test', direction = 'right', wrap = true })
     end
     f.process = { foreground = { name = 'nvim' } }
     f.process_error = 'process unavailable'
     f.run()
-    equal(f.focused[4], { direction = 'right', wrap = true })
+    equal(f.focused[4], { session_id = 'session:test', direction = 'right', wrap = true })
     equal(f.exec_calls, 0)
   end)
 
@@ -211,7 +228,7 @@ return function(test, equal)
     end
     equal(#f.process_calls, 0)
     equal(#f.view_calls, 0)
-    equal(#f.queued, 0)
+    equal(#f.sent, 0)
   end)
 
   test('companion fails closed for missing/error views and inactive source tabs', function()
@@ -235,13 +252,13 @@ return function(test, equal)
     f.views[f.ctx.session_id] = focused_view(f.ctx.block_id)
     f.view_error = 'view unavailable'
     f.run()
-    equal(#f.queued, 0)
+    equal(#f.sent, 0)
     f.view_error = nil
     f.run()
-    equal(#f.queued, 1)
+    equal(#f.sent, 1)
   end)
 
-  test('companion rechecks focus after ps before either queued action', function()
+  test('companion rechecks focus after ps before either action', function()
     for _, editor in ipairs({ true, false }) do
       local f = fixture()
       shell(f)
@@ -258,13 +275,13 @@ return function(test, equal)
       f.views[f.ctx.session_id] = focused_view('block:neighbor')
       equal(coroutine.resume(pending), true)
       equal(coroutine.status(pending), 'dead')
-      equal(#f.queued, 0)
+      equal(#f.sent, 0)
       equal(#f.view_calls, 1)
       -- Dropping stale work also releases the guard.
       f.on_exec = nil
       f.views[f.ctx.session_id] = focused_view(f.ctx.block_id)
       f.run()
-      equal(editor and #f.queued or #f.focused, 1)
+      equal(editor and #f.sent or #f.focused, 1)
     end
   end)
 
@@ -280,17 +297,17 @@ return function(test, equal)
     f.run('left')
     equal(#f.process_calls, 1)
     equal(f.exec_calls, 1)
-    equal(#f.queued, 0)
+    equal(#f.sent, 0)
     equal(coroutine.resume(pending), true)
     equal(coroutine.status(pending), 'dead')
-    equal(#f.queued, 1)
+    equal(#f.sent, 1)
     f.on_exec = nil
     f.run()
-    equal(#f.queued, 2)
+    equal(#f.sent, 2)
   end)
 
-  test('companion releases its guard after process, exec, view, queue, or focus_direction exceptions', function()
-    for _, target in ipairs({ 'process', 'exec', 'view', 'queue', 'focus_direction' }) do
+  test('companion releases its guard after process, exec, view, block.event, or focus_direction exceptions', function()
+    for _, target in ipairs({ 'process', 'exec', 'view', 'block.event', 'focus_direction' }) do
       local f = fixture()
       local owner, method
       if target == 'process' then
@@ -305,7 +322,7 @@ return function(test, equal)
         f.result.stdout = '100 90 S /bin/sh\n'
         owner, method = rex.session, 'focus_direction'
       else
-        owner, method = rex.client, 'queue'
+        owner, method = rex, 'call'
       end
       local original = owner[method]
       owner[method] = function()
@@ -314,11 +331,31 @@ return function(test, equal)
       local ok, err = pcall(f.run)
       equal(ok, false)
       assert(tostring(err):find(target .. ' exception', 1, true))
-      equal(target == 'focus_direction' and #f.focused or #f.queued, 0)
+      equal(target == 'focus_direction' and #f.focused or #f.sent, 0)
       owner[method] = original
       f.run()
-      equal(target == 'focus_direction' and #f.focused or #f.queued, 1)
+      equal(target == 'focus_direction' and #f.focused or #f.sent, 1)
     end
+  end)
+
+  test('companion targets the source block and reports server-side errors', function()
+    local f = fixture()
+    local other = { session_id = 'session:other', block_id = 'block:other' }
+    f.views['session:other'] = focused_view('block:other')
+    f.run('left', other)
+    equal(f.sent[1], key_event(other, 'h'))
+    f.call_error = 'session_not_found'
+    local ok, err = pcall(f.run)
+    equal({ ok, err }, { false, 'session_not_found' })
+    shell(f)
+    f.result.stdout = '100 90 S /bin/sh\n'
+    f.focus_error = 'focus failed'
+    ok, err = pcall(f.run, 'down', other)
+    equal({ ok, err }, { false, 'focus failed' })
+    equal(f.focused[1], { session_id = 'session:other', direction = 'down', wrap = true })
+    f.focus_error, f.call_error = nil, nil
+    f.run()
+    equal(#f.focused, 2)
   end)
 
   test('companion permits independent blocks and sessions while one source waits', function()
@@ -334,13 +371,13 @@ return function(test, equal)
     f.run('up', { session_id = 'session:test', block_id = 'block:other' })
     f.views['session:other'] = focused_view('block:test')
     f.run('down', { session_id = 'session:other', block_id = 'block:test' })
-    equal(#f.queued, 2)
+    equal(#f.sent, 2)
     equal(f.process_calls[2], { session_id = 'session:test', block_id = 'block:other' })
     equal(f.process_calls[3], { session_id = 'session:other', block_id = 'block:test' })
     f.views['session:test'] = focused_view('block:test')
     equal(coroutine.resume(pending), true)
     equal(coroutine.status(pending), 'dead')
-    equal(#f.queued, 3)
+    equal(#f.sent, 3)
     equal(f.exec_calls, 1)
   end)
 end
