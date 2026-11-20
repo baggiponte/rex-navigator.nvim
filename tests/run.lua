@@ -11,6 +11,9 @@ local saved = {
   bin = vim.env.REX_BIN_DIR,
 }
 local calls, notices, failures = {}, {}, 0
+-- requests: lines written to the persistent helper's stdin.
+-- respond(line) decides the helper's reply; nil means no reply.
+local requests, respond = {}, nil
 
 local function equal(actual, expected)
   assert(vim.deep_equal(actual, expected), vim.inspect(actual) .. ' ~= ' .. vim.inspect(expected))
@@ -21,9 +24,28 @@ local function test(name, run)
   vim.env.REX_SESSION = 'session:test'
   vim.env.REX_BLOCK = 'block:test'
   vim.env.REX_BIN_DIR = '/Applications/Rex Server'
-  calls, notices = {}, {}
-  vim.system = function(argv, opts)
-    calls[#calls + 1] = { argv = argv, opts = opts }
+  calls, notices, requests = {}, {}, {}
+  respond = function()
+    return 'ok'
+  end
+  vim.system = function(argv, opts, on_exit)
+    calls[#calls + 1] = { argv = argv, opts = opts, on_exit = on_exit }
+    if opts and opts.stdin then
+      local process = { killed = false }
+      function process.write(_, data)
+        requests[#requests + 1] = data
+        local reply = respond(data)
+        if reply then
+          opts.stdout(nil, reply .. '\n')
+        end
+      end
+      function process.kill(self)
+        self.killed = true
+        on_exit({ code = 143 })
+      end
+      calls[#calls].process = process
+      return process
+    end
     return {
       wait = function(_, timeout)
         equal(timeout, 3000)
@@ -72,6 +94,23 @@ test('Neovim windows take precedence in all four directions', function(plugin)
   equal(#calls, 0)
 end)
 
+local function helper_argv(executable, script)
+  return {
+    executable,
+    '--autostart=false',
+    '--timeout',
+    '2s',
+    'do',
+    '-s',
+    vim.env.REX_SESSION,
+    '-b',
+    vim.env.REX_BLOCK,
+    '-e',
+    script,
+    'serve=true',
+  }
+end
+
 local function handoff_argv(executable, direction, wrap, script)
   return {
     executable,
@@ -95,14 +134,16 @@ test('all four edges call the scoped Rex script without shell quoting', function
   -- Even values that look like Lua remain separate argv entries.
   vim.env.REX_SESSION = [[session:'; error('injected')]]
   vim.env.REX_BLOCK = [[block:'; error('injected')]]
-  local script
+  local sent = {}
   for key, direction in pairs({ h = 'left', j = 'down', k = 'up', l = 'right' }) do
     equal(plugin.navigate(key), true)
-    script = script or calls[1].argv[11]
-    assert(type(script) == 'string' and script ~= '')
-    equal(calls[#calls].argv, handoff_argv('/Applications/Rex Server/rex', direction, true, script))
-    equal(calls[#calls].opts, { text = true })
+    sent[#sent + 1] = direction .. ' true\n'
   end
+  equal(#calls, 1)
+  local script = calls[1].argv[11]
+  assert(type(script) == 'string' and script ~= '')
+  equal(calls[1].argv, helper_argv('/Applications/Rex Server/rex', script))
+  equal(requests, sent)
   assert(not script:find(vim.env.REX_BLOCK, 1, true))
   assert(not script:find(vim.env.REX_SESSION, 1, true))
 end)
@@ -111,13 +152,13 @@ test('commands and Plug mappings are available', function(plugin)
   plugin.setup()
   equal(vim.fn.maparg('<C-h>', 'n'), '<Plug>(RexNavigateLeft)')
   vim.cmd.RexNavigateRight()
-  equal(calls[1].argv[12], 'direction=right')
+  equal(requests[1], 'right true\n')
   assert(vim.fn.maparg('<Plug>(RexNavigateUp)', 'n') ~= '')
 end)
 
 test('commands work before setup() and setup() validates options', function(plugin)
   vim.cmd.RexNavigateLeft()
-  equal(calls[1].argv[12], 'direction=left')
+  equal(requests[1], 'left true\n')
   local ok, err = pcall(plugin.setup, { wrap = 'no' })
   assert(not ok and err:find('"wrap" must be a boolean', 1, true), err)
   ok, err = pcall(plugin.setup, 'x')
@@ -131,7 +172,73 @@ test('custom executable, no wrapping, and opt-out mappings', function(plugin)
   equal(vim.fn.maparg('<C-h>', 'n'), '')
   equal(vim.fn.maparg('<C-h>', 't'), '')
   plugin.navigate('k')
-  equal(calls[1].argv, handoff_argv('/custom/rex', 'up', false, calls[1].argv[11]))
+  equal(calls[1].argv, helper_argv('/custom/rex', calls[1].argv[11]))
+  equal(requests[1], 'up false\n')
+end)
+
+test('persistent helper is reused, restarted after exit, and closed on exit', function(plugin)
+  plugin.setup()
+  equal(plugin.navigate('l'), true)
+  equal(plugin.navigate('h'), true)
+  equal(#calls, 1)
+  calls[1].on_exit({ code = 0 })
+  equal(plugin.navigate('j'), true)
+  equal(#calls, 2)
+  equal(requests, { 'right true\n', 'left true\n', 'down true\n' })
+  vim.api.nvim_exec_autocmds('VimLeavePre', {})
+  equal(calls[2].process.killed, true)
+end)
+
+test('helper errors warn without falling back to a second handoff', function(plugin)
+  plugin.setup()
+  respond = function()
+    return 'err focus disconnected'
+  end
+  equal(plugin.navigate('l'), false)
+  equal(#calls, 1)
+  equal(notices, { 'rex-navigator: focus disconnected' })
+end)
+
+test('helper that dies before answering falls back to a one-shot handoff', function(plugin)
+  plugin.setup()
+  respond = function()
+    calls[1].on_exit({ code = 1 })
+  end
+  equal(plugin.navigate('l'), true)
+  equal(#calls, 2)
+  equal(calls[2].argv, handoff_argv('/Applications/Rex Server/rex', 'right', true, calls[1].argv[11]))
+  equal(calls[2].opts, { text = true })
+end)
+
+test('helper timeouts warn, stop the helper, and do not retry', function(plugin)
+  plugin.setup()
+  respond = function() end
+  local wait = vim.wait
+  vim.wait = function(timeout, condition)
+    equal(timeout, 2000)
+    return condition()
+  end
+  local ok, err = pcall(plugin.navigate, 'l')
+  vim.wait = wait
+  assert(ok, err)
+  equal(err, false)
+  equal(#calls, 1)
+  equal(calls[1].process.killed, true)
+  assert(notices[1]:find('did not answer', 1, true))
+end)
+
+test('helper that cannot start falls back to a one-shot handoff', function(plugin)
+  plugin.setup()
+  local system = vim.system
+  vim.system = function(argv, opts, on_exit)
+    if opts and opts.stdin then
+      error('spawn failed')
+    end
+    return system(argv, opts, on_exit)
+  end
+  equal(plugin.navigate('l'), true)
+  equal(#calls, 1)
+  equal(calls[1].argv[12], 'direction=right')
 end)
 
 test('terminal mappings can be disabled independently', function(plugin)
