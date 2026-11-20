@@ -90,9 +90,12 @@ end
 
 local function start_helper()
   local state = { buffer = '', replies = {} }
+  -- --timeout bounds each connection and request, not the whole session.
   local command = {
     M.executable(),
     '--autostart=false',
+    '--timeout',
+    '2s',
     'do',
     '-s',
     vim.env.REX_SESSION,

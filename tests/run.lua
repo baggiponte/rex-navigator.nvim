@@ -98,6 +98,8 @@ local function helper_argv(executable, script)
   return {
     executable,
     '--autostart=false',
+    '--timeout',
+    '2s',
     'do',
     '-s',
     vim.env.REX_SESSION,
@@ -138,7 +140,7 @@ test('all four edges call the scoped Rex script without shell quoting', function
     sent[#sent + 1] = direction .. ' true\n'
   end
   equal(#calls, 1)
-  local script = calls[1].argv[9]
+  local script = calls[1].argv[11]
   assert(type(script) == 'string' and script ~= '')
   equal(calls[1].argv, helper_argv('/Applications/Rex Server/rex', script))
   equal(requests, sent)
@@ -170,7 +172,7 @@ test('custom executable, no wrapping, and opt-out mappings', function(plugin)
   equal(vim.fn.maparg('<C-h>', 'n'), '')
   equal(vim.fn.maparg('<C-h>', 't'), '')
   plugin.navigate('k')
-  equal(calls[1].argv, helper_argv('/custom/rex', calls[1].argv[9]))
+  equal(calls[1].argv, helper_argv('/custom/rex', calls[1].argv[11]))
   equal(requests[1], 'up false\n')
 end)
 
@@ -204,7 +206,7 @@ test('helper that dies before answering falls back to a one-shot handoff', funct
   end
   equal(plugin.navigate('l'), true)
   equal(#calls, 2)
-  equal(calls[2].argv, handoff_argv('/Applications/Rex Server/rex', 'right', true, calls[1].argv[9]))
+  equal(calls[2].argv, handoff_argv('/Applications/Rex Server/rex', 'right', true, calls[1].argv[11]))
   equal(calls[2].opts, { text = true })
 end)
 
@@ -359,7 +361,7 @@ test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugi
 end)
 
 dofile('tests/handoff.lua')(test, equal, function()
-  return calls[1].argv[9]
+  return calls[1].argv[11]
 end)
 dofile('tests/companion.lua')(test, equal)
 
