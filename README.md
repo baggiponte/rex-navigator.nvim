@@ -40,8 +40,9 @@ from intercepting the keys.
 - Neovim **0.10+** (`vim.system`).
 - Rex with Lua custom actions, `pane.send_key`, `session.focus_direction`,
   terminal process inspection, `rex.exec`, and `rex do` with session view/focus
-  APIs. Initially checked against **Beta 1203**; non-editor pane navigation
-  confirmed on **Beta 0.1.0 (1829)**.
+  APIs. The CLI must resolve the session from `rex do -b "$REX_BLOCK"` without
+  `-s`. This routing was verified with Rex CLI **0.1.0-preview.23**; earlier CLI
+  versions have not been verified for it.
 - The Rex CLI, found through `REX_BIN_DIR`, `PATH`, or an explicit `rex_cmd`.
 - macOS `ps` or a compatible Linux `ps` (such as procps), available on the Rex
   server's PATH for wrapper detection. BusyBox variants may lack the required
@@ -83,7 +84,7 @@ With another plugin manager, add this repository to Neovim's runtime path, then:
 require('rex-navigator').setup()
 ```
 
-Default Ctrl mappings activate only when `REX_SESSION` is set to a nonempty
+Default Ctrl mappings activate only when `REX_BLOCK` is set to a nonempty
 value. They do not replace bindings outside Rex. Commands and Plug mappings
 are defined when the plugin loads, even without `setup()`; outside Rex they
 only navigate Neovim windows.
@@ -106,7 +107,7 @@ if vim.env.TMUX ~= nil and vim.env.TMUX ~= '' then
 end
 ```
 
-Each plugin checks its own environment: Rex uses `REX_SESSION`; tmux-navigator
+Each plugin checks its own environment: Rex uses `REX_BLOCK`; tmux-navigator
 uses `TMUX`. Nested multiplexers are unsupported. Other plugins mapping the
 same keys can still override these mappings; the last mapping installed wins.
 
@@ -166,8 +167,8 @@ From Neovim inside a Rex pane:
 :checkhealth rex-navigator
 ```
 
-It checks the Neovim version, that `setup()` ran, the Rex session variables,
-the Rex CLI, and who owns Ctrl-h/j/k/l. The Rex companion cannot be inspected
+It checks the Neovim version, that `setup()` ran, `REX_BLOCK`, the Rex CLI,
+and who owns Ctrl-h/j/k/l. The Rex companion cannot be inspected
 from Neovim; `rex config check` covers that half.
 
 ## Configuration
@@ -233,6 +234,13 @@ a Rex server if none is running.
 ## Troubleshooting
 
 Start with `:checkhealth rex-navigator` inside a Rex pane.
+
+**Navigation works between Neovim windows but stops at an editor edge**
+
+Make sure Neovim was started in a Rex pane and inherited `REX_BLOCK`. If it
+is missing, open a new Rex pane and start Neovim there. `REX_SESSION` is not
+needed. If the CLI rejects the block target, check that the executable
+reported by `:checkhealth` supports `rex do -b` without `-s`.
 
 **Keys skip Neovim windows and go straight to Rex panes**
 
