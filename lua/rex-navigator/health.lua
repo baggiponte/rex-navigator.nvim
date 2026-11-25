@@ -1,9 +1,5 @@
 local M = {}
 
-local function set(value)
-  return value ~= nil and value ~= ''
-end
-
 function M.check()
   local health = vim.health
   local plugin = require('rex-navigator')
@@ -24,19 +20,13 @@ function M.check()
     )
   end
 
-  if not set(vim.env.REX_SESSION) then
-    health.warn('Not running inside Rex (REX_SESSION is unset)', {
-      'Mappings are installed only inside Rex. Run :checkhealth from Neovim in a Rex pane.',
+  if not plugin.source_block_id() then
+    health.warn('No Rex source pane (REX_BLOCK is unset or empty)', {
+      'Start Neovim inside a Rex pane and run :checkhealth again.',
     })
     return
   end
-  health.ok('Running inside Rex session ' .. vim.env.REX_SESSION)
-
-  if set(vim.env.REX_BLOCK) then
-    health.ok('REX_BLOCK is set')
-  else
-    health.error('REX_BLOCK is unset; edge handoffs to Rex are refused')
-  end
+  health.ok('REX_BLOCK is set')
 
   local executable = plugin.executable()
   if vim.fn.executable(executable) == 1 then

@@ -18,7 +18,7 @@ end
 
 local function test(name, run)
   vim.cmd.only()
-  vim.env.REX_SESSION = 'session:test'
+  vim.env.REX_SESSION = nil
   vim.env.REX_BLOCK = 'block:test'
   vim.env.REX_BIN_DIR = '/Applications/Rex Server'
   calls, notices = {}, {}
@@ -79,8 +79,6 @@ local function handoff_argv(executable, direction, wrap, script)
     '--timeout',
     '2s',
     'do',
-    '-s',
-    vim.env.REX_SESSION,
     '-b',
     vim.env.REX_BLOCK,
     '-e',
@@ -90,34 +88,52 @@ local function handoff_argv(executable, direction, wrap, script)
   }
 end
 
-test('all four edges call the scoped Rex script without shell quoting', function(plugin)
+local function handoff_script(argv)
+  for i, arg in ipairs(argv) do
+    if arg == '-e' then
+      local script = argv[i + 1]
+      assert(type(script) == 'string' and script ~= '', 'expected Lua script after -e')
+      return script
+    end
+  end
+  error('missing -e in Rex argv')
+end
+
+test('all four edges use only the source block without shell quoting', function(plugin)
   plugin.setup()
   -- Even values that look like Lua remain separate argv entries.
-  vim.env.REX_SESSION = [[session:'; error('injected')]]
   vim.env.REX_BLOCK = [[block:'; error('injected')]]
   local script
   for key, direction in pairs({ h = 'left', j = 'down', k = 'up', l = 'right' }) do
     equal(plugin.navigate(key), true)
-    script = script or calls[1].argv[11]
-    assert(type(script) == 'string' and script ~= '')
+    script = script or handoff_script(calls[1].argv)
     equal(calls[#calls].argv, handoff_argv('/Applications/Rex Server/rex', direction, true, script))
     equal(calls[#calls].opts, { text = true })
   end
+  equal(#calls, 4)
   assert(not script:find(vim.env.REX_BLOCK, 1, true))
+end)
+
+test('handoff ignores a legacy session ID', function(plugin)
+  vim.env.REX_SESSION = 'session:stale'
+  equal(plugin.navigate('l'), true)
+  local argv = calls[1].argv
+  local script = handoff_script(argv)
+  equal(argv, handoff_argv('/Applications/Rex Server/rex', 'right', true, script))
   assert(not script:find(vim.env.REX_SESSION, 1, true))
 end)
 
-test('commands and Plug mappings are available', function(plugin)
+test('commands and Plug mappings are available with only REX_BLOCK', function(plugin)
   plugin.setup()
   equal(vim.fn.maparg('<C-h>', 'n'), '<Plug>(RexNavigateLeft)')
   vim.cmd.RexNavigateRight()
-  equal(calls[1].argv[12], 'direction=right')
+  assert(vim.list_contains(calls[1].argv, 'direction=right'))
   assert(vim.fn.maparg('<Plug>(RexNavigateUp)', 'n') ~= '')
 end)
 
 test('commands work before setup() and setup() validates options', function(plugin)
   vim.cmd.RexNavigateLeft()
-  equal(calls[1].argv[12], 'direction=left')
+  assert(vim.list_contains(calls[1].argv, 'direction=left'))
   local ok, err = pcall(plugin.setup, { wrap = 'no' })
   assert(not ok and err:find('"wrap" must be a boolean', 1, true), err)
   ok, err = pcall(plugin.setup, 'x')
@@ -131,7 +147,8 @@ test('custom executable, no wrapping, and opt-out mappings', function(plugin)
   equal(vim.fn.maparg('<C-h>', 'n'), '')
   equal(vim.fn.maparg('<C-h>', 't'), '')
   plugin.navigate('k')
-  equal(calls[1].argv, handoff_argv('/custom/rex', 'up', false, calls[1].argv[11]))
+  local argv = calls[1].argv
+  equal(argv, handoff_argv('/custom/rex', 'up', false, handoff_script(argv)))
 end)
 
 test('terminal mappings can be disabled independently', function(plugin)
@@ -157,26 +174,25 @@ test('ordinary terminal mappings leave terminal mode and run navigation', functi
   end
 end)
 
-test('missing REX_BLOCK refuses unscoped handoff with a warning', function(plugin)
-  plugin.setup()
-  for _, block in ipairs({ false, '' }) do
-    vim.env.REX_BLOCK = block or nil
-    equal(plugin.navigate('l'), false)
-  end
-  equal(#calls, 0)
-  equal(#notices, 2)
-  assert(notices[1]:find('REX_BLOCK', 1, true))
-end)
-
-test('outside Rex, existing mappings are untouched', function(plugin)
-  for _, session in ipairs({ false, '' }) do
+test('without a source block, mappings are untouched and only Neovim windows are navigated', function(plugin)
+  local existing = '<Cmd>echo "existing"<CR>'
+  vim.keymap.set({ 'n', 't' }, '<C-h>', existing)
+  for _, session in ipairs({ false, 'session:legacy' }) do
     vim.env.REX_SESSION = session or nil
-    vim.keymap.set('n', '<C-h>', '<Cmd>echo "existing"<CR>')
-    plugin.setup()
-    equal(vim.fn.maparg('<C-h>', 'n'), '<Cmd>echo "existing"<CR>')
-    equal(plugin.navigate('h'), false)
+    for _, block in ipairs({ false, '' }) do
+      vim.env.REX_BLOCK = block or nil
+      plugin.setup()
+      equal(vim.fn.maparg('<C-h>', 'n'), existing)
+      equal(vim.fn.maparg('<C-h>', 't'), existing)
+      equal(plugin.navigate('h'), false)
+    end
   end
+  local right = vim.api.nvim_get_current_win()
+  vim.cmd.vsplit()
+  vim.cmd.RexNavigateRight()
+  equal(vim.api.nvim_get_current_win(), right)
   equal(#calls, 0)
+  equal(#notices, 0)
 end)
 
 test('PATH fallback works without REX_BIN_DIR', function(plugin)
@@ -241,20 +257,24 @@ test('checkhealth reports setup, Rex context, CLI, and mappings', function(plugi
     health.check()
     assert(vim.tbl_contains(reports, 'error Rex CLI not found: /missing/rex'), vim.inspect(reports))
 
-    reports = {}
-    vim.env.REX_SESSION = nil
-    health.check()
-    assert(
-      vim.tbl_contains(reports, 'warn Not running inside Rex (REX_SESSION is unset)'),
-      vim.inspect(reports)
-    )
+    vim.env.REX_SESSION = 'session:legacy'
+    for _, block in ipairs({ false, '' }) do
+      reports = {}
+      vim.env.REX_BLOCK = block or nil
+      health.check()
+      assert(
+        vim.tbl_contains(reports, 'warn No Rex source pane (REX_BLOCK is unset or empty)'),
+        vim.inspect(reports)
+      )
+      assert(not vim.tbl_contains(reports, 'error Rex CLI not found: /missing/rex'), vim.inspect(reports))
+    end
   end)
   vim.health = saved_health
   assert(ok, err)
 end)
 
 dofile('tests/handoff.lua')(test, equal, function()
-  return calls[1].argv[11]
+  return handoff_script(calls[1].argv)
 end)
 dofile('tests/companion.lua')(test, equal)
 

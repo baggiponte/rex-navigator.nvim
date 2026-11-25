@@ -18,8 +18,14 @@ local option_types = { mappings = 'boolean', terminal = 'boolean', wrap = 'boole
 local config = vim.deepcopy(defaults)
 local configured = false
 
-local function in_rex()
-  return vim.env.REX_SESSION ~= nil and vim.env.REX_SESSION ~= ''
+---Return the source pane ID, or nil outside a Rex pane.
+---@return string?
+function M.source_block_id()
+  local block = vim.env.REX_BLOCK
+  if block and block ~= '' then
+    return block
+  end
+  return nil
 end
 
 -- Keep source and navigation data in argv, never interpolated into Lua.
@@ -56,21 +62,16 @@ function M.is_configured()
   return configured
 end
 
-local function focus_rex(direction)
-  if not vim.env.REX_BLOCK or vim.env.REX_BLOCK == '' then
-    vim.notify('rex-navigator: REX_BLOCK is missing; refusing an unscoped handoff', vim.log.levels.WARN)
-    return false
-  end
+local function focus_rex(direction, block)
+  -- Rex resolves the pane's current session from its block ID.
   local command = {
     M.executable(),
     '--autostart=false',
     '--timeout',
     '2s',
     'do',
-    '-s',
-    vim.env.REX_SESSION,
     '-b',
-    vim.env.REX_BLOCK,
+    block,
     '-e',
     handoff_script,
     'direction=' .. direction,
@@ -102,8 +103,9 @@ function M.navigate(direction)
   if vim.api.nvim_get_current_win() ~= window then
     return true
   end
-  if in_rex() then
-    return focus_rex(target.direction)
+  local block = M.source_block_id()
+  if block then
+    return focus_rex(target.direction, block)
   end
   return false
 end
@@ -125,12 +127,13 @@ function M.setup(opts)
   config = vim.tbl_extend('force', vim.deepcopy(defaults), opts)
   configured = true
 
+  local install_mappings = config.mappings and M.source_block_id() ~= nil
   for key, target in pairs(directions) do
     local direction = key
     local command = 'RexNavigate' .. target.name
     local plug = '<Plug>(' .. command .. ')'
 
-    if in_rex() and config.mappings then
+    if install_mappings then
       vim.keymap.set('n', '<C-' .. key .. '>', plug, {
         silent = true,
         desc = 'Navigate ' .. target.direction .. ' through Neovim and Rex',
